@@ -2,6 +2,16 @@
 
 A browser-based WebGL battlemap editor for tabletop RPGs. It supports separate Master and Player views, dynamic effects, lighting, fog-of-war, drawing tools, sound effects, and timed scenarios.
 
+## Planned features!
+
+ - More effects
+ - Camera effects (shaking, eg)
+ - Water
+For feature requests be free to write me on email!
+garikmkrtchyan277353@gmail.com
+Also, you can use telegram for feedback and feature requests!
+My tg: @V1king_W
+
 ## Running the program
 
 For best results, run the HTML file through a local web server:
