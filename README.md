@@ -7,6 +7,8 @@ A browser-based WebGL battlemap editor for tabletop RPGs. It supports separate M
  - More effects
  - Camera effects (shaking, eg)
  - Water
+
+   
 For feature requests be free to write me on email!
 garikmkrtchyan277353@gmail.com
 Also, you can use telegram for feedback and feature requests!
