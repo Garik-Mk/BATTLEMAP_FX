@@ -1,0 +1,3387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebGL Battlemap FX Editor v7 — Scenario Timeline</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#121417; --panel:#1b1f24; --panel2:#222831; --line:#333b45;
+  --text:#e9edf2; --muted:#9aa4af; --accent:#5ba7ff; --danger:#d75b5b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0d0f12;color:var(--text);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+#app{display:flex;width:100%;height:100%}
+#stage{position:relative;flex:1;min-width:0;background:#111;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#selectionCanvas{pointer-events:none}
+#overlayCanvas{pointer-events:none}
+#fogCanvas{pointer-events:none}
+#sidebar{width:410px;background:var(--panel);border-left:1px solid var(--line);display:block;overflow-y:auto;overflow-x:hidden}
+#topbar{padding:12px;border-bottom:1px solid var(--line);background:#171b20}
+.title{font-size:16px;font-weight:700;margin-bottom:8px}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap}
+button,.btn,select,input[type=number],input[type=text],input[type=color]{background:var(--panel2);color:var(--text);border:1px solid #3d4651;border-radius:6px;padding:7px 9px;font:inherit}
+button{cursor:pointer}
+button:hover{border-color:#5a6674}
+button.active{background:#204d7b;border-color:var(--accent)}
+button.danger{border-color:#6b3838;color:#ffb8b8}
+button.small{padding:3px 6px;font-size:11px}
+input[type=range]{width:100%}
+.section{padding:12px;border-bottom:1px solid var(--line)}
+.section h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;cursor:pointer;user-select:none;position:relative;padding-left:16px}
+.section h3::before{content:"▾";position:absolute;left:0;top:-1px;color:#778390}
+.section.collapsed h3{margin-bottom:0}
+.section.collapsed h3::before{content:"▸"}
+.section.collapsed > :not(h3){display:none!important}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.row label{font-size:12px;color:#c8d0d9;min-width:95px}
+.row .grow{flex:1}
+.row input[type=number]{width:92px}
+.row input[type=color]{padding:2px;width:48px;height:30px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#layersWrap{min-height:0;overflow:visible}
+.layer{display:grid;grid-template-columns:22px 22px 1fr 28px;align-items:center;gap:5px;padding:7px 6px;border-radius:6px;margin:3px 0;border:1px solid transparent;user-select:none}
+.layer:hover{background:#20262d}
+.layer.selected{background:#183957;border-color:#2c699d}
+.layer .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;cursor:pointer}
+.eye{width:22px;height:22px;padding:0;border-radius:4px;font-size:12px}
+.eye.off{opacity:.35}
+.deleteLayer{width:28px;height:24px;padding:0;color:#ffadad}
+.badge{font-size:10px;color:#b8c0c9;border:1px solid #48515b;border-radius:10px;padding:1px 6px;margin-left:6px}
+#inspector{overflow:visible;max-height:none}
+.valueLabel{font-size:11px;color:var(--accent);min-width:52px;text-align:right}
+.rangeNumber{width:76px!important;padding:5px 6px!important;font-size:12px!important}
+.section-note{font-size:10px;color:#74808c;margin-top:6px}
+.temporaryBadge{color:#ffcf78;border-color:#7c6238}
+#status{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.58);padding:7px 9px;border-radius:6px;font-size:11px;line-height:1.5;color:#d5dbe2;pointer-events:none}
+#playerBadge{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.58);padding:7px 9px;border-radius:6px;font-size:12px;pointer-events:none}
+.muted{font-size:11px;color:var(--muted);line-height:1.4}
+.filebtn{display:inline-block;cursor:pointer}
+.hidden{display:none!important}
+hr{border:0;border-top:1px solid var(--line);margin:10px 0}
+.checkline{display:flex;align-items:center;gap:7px;font-size:12px}
+#viewControls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.colorAlpha{width:64px!important;padding:5px 6px!important;font-size:12px!important}
+.inspectorDraft{padding:7px 9px;margin-bottom:8px;border:1px solid #44698e;background:#162b40;border-radius:6px;color:#9fd0ff;font-size:11px}
+#cameraHint{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);padding:6px 8px;border-radius:6px;color:#bfc8d2;font-size:10px;pointer-events:none}
+
+/* Scenario timeline */
+body.scenario-open #app{height:calc(100% - 360px)}
+#scenarioEditor{
+  position:fixed;left:0;right:0;bottom:0;height:360px;z-index:40;
+  background:#13171c;border-top:1px solid #3b4652;color:var(--text);
+  display:flex;flex-direction:column;box-shadow:0 -8px 30px rgba(0,0,0,.35)
+}
+#scenarioEditor.hidden{display:none!important}
+#scenarioHeader{display:flex;align-items:center;gap:7px;padding:8px 10px;background:#191e24;border-bottom:1px solid #303842;flex-wrap:wrap}
+#scenarioHeader .scenario-title{font-weight:700;margin-right:5px}
+#scenarioHeader input[type=text]{width:180px}
+#scenarioHeader input[type=number]{width:82px}
+#scenarioTools{display:flex;align-items:center;gap:7px;padding:7px 10px;border-bottom:1px solid #303842;flex-wrap:wrap;background:#161b20}
+#scenarioTools select{max-width:150px}
+#scenarioTools input[type=number]{width:76px}
+#scenarioTimeLabel{font-variant-numeric:tabular-nums;color:#9fd0ff;min-width:100px;text-align:center}
+#scenarioTimelineScroll{position:relative;flex:1;overflow:auto;background:#0f1216}
+#scenarioTimelineInner{position:relative;min-height:100%;padding-bottom:12px}
+.scenario-ruler{height:30px;position:relative;border-bottom:1px solid #343c45;background:#15191e;user-select:none}
+.scenario-ruler-label{position:absolute;top:0;bottom:0;width:170px;left:0;background:#181d22;border-right:1px solid #343c45;z-index:4;padding:7px 9px;color:#87929e;font-size:11px;position:sticky}
+.scenario-tick{position:absolute;top:0;height:30px;border-left:1px solid #313943;color:#7f8a95;font-size:9px;padding-left:3px;padding-top:4px}
+.scenario-track{height:46px;position:relative;border-bottom:1px solid #252c33}
+.scenario-track:hover{background:#12171c}
+.scenario-track-label{position:sticky;left:0;top:0;width:170px;height:46px;background:#171c21;border-right:1px solid #343c45;z-index:4;padding:7px 8px;font-size:11px}
+.scenario-track-label .type{font-size:9px;color:#778390;margin-top:2px}
+.scenario-clip{
+  position:absolute;top:7px;height:31px;border:1px solid #5f7893;border-radius:5px;
+  background:#274561;color:#ecf6ff;overflow:hidden;cursor:grab;user-select:none;
+  min-width:24px;box-shadow:0 2px 5px rgba(0,0,0,.25)
+}
+.scenario-clip:hover{filter:brightness(1.12)}
+.scenario-clip.selected{outline:2px solid #72bcff;outline-offset:1px}
+.scenario-clip .clipText{font-size:10px;line-height:29px;padding:0 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scenario-resize{position:absolute;right:0;top:0;width:8px;height:100%;cursor:ew-resize;background:rgba(255,255,255,.12)}
+.scenario-playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff6262;z-index:8;pointer-events:none}
+.scenario-playhead::before{content:"";position:absolute;left:-5px;top:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #ff6262}
+.scenario-empty{padding:30px 190px;color:#68737e;font-size:12px}
+.scenario-chip-smoke{background:#4e5964}
+.scenario-chip-light{background:#755d24}
+.scenario-chip-fire{background:#873c1e}
+.scenario-chip-rain{background:#24516e}
+.scenario-chip-explosion{background:#8a331f}
+.scenario-chip-magic{background:#4d3f8f}
+.scenario-chip-text,.scenario-chip-rect,.scenario-chip-circle,.scenario-chip-shapeLine,.scenario-chip-polygon{background:#315d4b}
+.scenario-selected-note{color:#9fd0ff;font-size:11px}
+.scenario-divider{width:1px;height:25px;background:#3b444d;margin:0 2px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="glCanvas"></canvas>
+    <canvas id="overlayCanvas"></canvas>
+    <canvas id="fogCanvas"></canvas>
+    <canvas id="selectionCanvas"></canvas>
+    <div id="status"></div>
+    <div id="playerBadge" class="hidden">PLAYER VIEW</div>
+    <div id="cameraHint">Wheel: zoom · Right/Middle drag or Space+drag: pan</div>
+  </div>
+
+  <aside id="sidebar">
+    <div id="topbar">
+      <div class="title">Battlemap FX Editor</div>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button id="openScenarioEditor">Scenario Editor</button>
+      </div>
+      <div class="toolbar" id="toolButtons">
+        <button data-tool="pan">Pan [0]</button>
+        <button data-tool="select" class="active">Select [1]</button>
+        <button data-tool="wall">Wall [2]</button>
+        <button data-tool="smoke">Smoke [3]</button>
+        <button data-tool="light">Light [4]</button>
+        <button data-tool="fogReveal">Reveal Fog [5]</button>
+        <button data-tool="fogHide">Hide Fog [6]</button>
+        <button data-tool="fire">Fire [7]</button>
+        <button data-tool="explosion">Explosion [8]</button>
+        <button data-tool="magic">Magic Burst [9]</button>
+        <button data-tool="text">Text</button>
+        <button data-tool="rect">Rectangle</button>
+        <button data-tool="circle">Circle</button>
+        <button data-tool="shapeLine">Line</button>
+        <button data-tool="polygon">Polygon</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Views</h3>
+      <div class="toolbar">
+        <button id="openPlayer">Open Player Window</button>
+        <button id="syncNow">Sync Player</button>
+      </div>
+      <div id="viewControls" style="margin-top:8px">
+        <label class="checkline"><input id="masterFxGlobal" type="checkbox" checked> Master FX</label>
+        <label class="checkline"><input id="playerFxGlobal" type="checkbox" checked> Player FX</label>
+      </div>
+      <div class="muted" style="margin-top:6px">Each layer also has separate M/P visibility toggles.</div>
+    </div>
+
+    <div class="section">
+      <h3>Map / Grid</h3>
+      <div class="row">
+        <label>Background</label>
+        <label class="btn filebtn grow">Choose image<input id="backgroundFile" type="file" accept="image/*" class="hidden"></label>
+        <button id="clearBackground" class="small">Clear</button>
+      </div>
+      <div class="row">
+        <label>Fit</label>
+        <select id="backgroundFit" class="grow">
+          <option value="stretch">Stretch</option>
+          <option value="contain">Contain</option>
+          <option value="cover">Cover</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>World width</label>
+        <input id="worldWidth" type="number" min="100" max="30000" step="1" value="1920" class="grow">
+      </div>
+      <div class="row">
+        <label>World height</label>
+        <input id="worldHeight" type="number" min="100" max="30000" step="1" value="1080" class="grow">
+      </div>
+      <div class="toolbar">
+        <button id="fitMap">Fit Map</button>
+        <button id="useImageSize">Use Image Size</button>
+      </div>
+      <div class="row">
+        <label>Grid</label>
+        <label class="checkline grow"><input id="gridEnabled" type="checkbox" checked> Enabled</label>
+      </div>
+      <div class="row">
+        <label>Grid size</label>
+        <input id="gridSize" type="range" min="16" max="256" step="1" value="64" class="grow">
+        <input id="gridSizeVal" class="rangeNumber" type="number" min="16" max="256" step="1" value="64">
+      </div>
+      <div class="row">
+        <label>Grid opacity</label>
+        <input id="gridOpacity" type="range" min="0" max="0.6" step="0.01" value="0.12" class="grow">
+        <input id="gridOpacityVal" class="rangeNumber" type="number" min="0" max="0.6" step="0.01" value="0.12">
+      </div>
+    </div>
+
+    <div class="section" id="layersWrap">
+      <h3>Active Layers</h3>
+      <div id="layers"></div>
+      <div class="toolbar" style="margin-top:8px">
+        <button id="addWind">+ Wind</button>
+        <button id="addFog">+ Fog</button>
+        <button id="addRain">+ Rain</button>
+      </div>
+      <div class="section-note">Fire is persistent. Explosion and Magic Burst are one-shot layers and delete themselves automatically.</div>
+    </div>
+
+    <div class="section" id="inspector">
+      <h3>Inspector</h3>
+      <div id="inspectorBody" class="muted">Select a layer.</div>
+    </div>
+
+    <div class="section">
+      <h3>Fog of War</h3>
+      <div class="row">
+        <label>Brush size</label>
+        <input id="fogBrush" type="range" min="5" max="500" step="1" value="80" class="grow">
+        <input id="fogBrushVal" class="rangeNumber" type="number" min="5" max="500" step="1" value="80">
+      </div>
+      <div class="toolbar">
+        <button id="resetFog">Reset Fog</button>
+        <button id="clearFog">Clear / Reveal All</button>
+      </div>
+      <div class="muted" style="margin-top:6px">Reveal removes fog; Hide paints it back. Fog visibility itself is controlled in the Fog layer.</div>
+    </div>
+
+    <div class="section">
+      <h3>Program Audio</h3>
+      <div class="muted" style="margin-bottom:8px">Global sounds for the whole project. Use a URL or choose a local audio file. Fire, rain and ambient are loops; explosion and magic are one-shot sounds.</div>
+
+      <div class="row"><label>Explosion</label><input id="soundExplosion" type="text" class="grow" placeholder="URL / local file"><label class="btn filebtn small">File<input id="soundExplosionFile" type="file" accept="audio/*" class="hidden"></label><button id="soundExplosionPlay" class="small">▶</button></div>
+      <div class="row"><label></label><input id="soundExplosionVol" type="range" min="0" max="1" step="0.01" class="grow"><input id="soundExplosionVolVal" class="rangeNumber" type="number" min="0" max="1" step="0.01"><label class="checkline"><input id="soundExplosionMute" type="checkbox">Mute</label></div>
+
+      <div class="row"><label>Fire loop</label><input id="soundFire" type="text" class="grow" placeholder="URL / local file"><label class="btn filebtn small">File<input id="soundFireFile" type="file" accept="audio/*" class="hidden"></label><button id="soundFirePlay" class="small">▶</button></div>
+      <div class="row"><label></label><input id="soundFireVol" type="range" min="0" max="1" step="0.01" class="grow"><input id="soundFireVolVal" class="rangeNumber" type="number" min="0" max="1" step="0.01"><label class="checkline"><input id="soundFireMute" type="checkbox">Mute</label></div>
+
+      <div class="row"><label>Rain loop</label><input id="soundRain" type="text" class="grow" placeholder="URL / local file"><label class="btn filebtn small">File<input id="soundRainFile" type="file" accept="audio/*" class="hidden"></label><button id="soundRainPlay" class="small">▶</button></div>
+      <div class="row"><label></label><input id="soundRainVol" type="range" min="0" max="1" step="0.01" class="grow"><input id="soundRainVolVal" class="rangeNumber" type="number" min="0" max="1" step="0.01"><label class="checkline"><input id="soundRainMute" type="checkbox">Mute</label></div>
+
+      <div class="row"><label>Magic burst</label><input id="soundMagic" type="text" class="grow" placeholder="URL / local file"><label class="btn filebtn small">File<input id="soundMagicFile" type="file" accept="audio/*" class="hidden"></label><button id="soundMagicPlay" class="small">▶</button></div>
+      <div class="row"><label></label><input id="soundMagicVol" type="range" min="0" max="1" step="0.01" class="grow"><input id="soundMagicVolVal" class="rangeNumber" type="number" min="0" max="1" step="0.01"><label class="checkline"><input id="soundMagicMute" type="checkbox">Mute</label></div>
+
+      <div class="row"><label>Ambient</label><input id="soundAmbient" type="text" class="grow" placeholder="URL / local file"><label class="btn filebtn small">File<input id="soundAmbientFile" type="file" accept="audio/*" class="hidden"></label><button id="soundAmbientPlay" class="small">▶</button></div>
+      <div class="row"><label></label><input id="soundAmbientVol" type="range" min="0" max="1" step="0.01" class="grow"><input id="soundAmbientVolVal" class="rangeNumber" type="number" min="0" max="1" step="0.01"><label class="checkline"><input id="soundAmbientMute" type="checkbox">Mute</label></div>
+
+      <div class="toolbar" style="margin-top:8px"><button id="stopAllSounds">Stop all sounds</button></div>
+      <div class="section-note">Browser autoplay rules may require one click in a newly opened Player window before sound can start there.</div>
+    </div>
+
+    <div class="section">
+      <h3>Project</h3>
+      <div class="toolbar">
+        <button id="saveScene">Save JSON</button>
+        <label class="btn filebtn">Load JSON<input id="loadScene" type="file" accept=".json,application/json" class="hidden"></label>
+        <button id="clearTemporary">Clear Temporary FX</button>
+        <button id="clearScene" class="danger">Clear Scene</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="scenarioEditor" class="hidden">
+  <div id="scenarioHeader">
+    <span class="scenario-title">Scenario Timeline</span>
+    <input id="scenarioName" type="text" value="New Scenario" title="Scenario name">
+    <button id="scenarioNew">New</button>
+    <button id="scenarioSave">Save Scenario JSON</button>
+    <label class="btn filebtn">Load Scenario JSON<input id="scenarioLoad" type="file" accept=".json,application/json" class="hidden"></label>
+    <span class="scenario-divider"></span>
+    <button id="scenarioPlay">▶ Play</button>
+    <button id="scenarioPause">Ⅱ Pause</button>
+    <button id="scenarioStop">■ Stop</button>
+    <span id="scenarioTimeLabel">00:00.00 / 00:30.00</span>
+    <label class="checkline">Duration <input id="scenarioDuration" type="number" min="0.1" step="0.1" value="30"></label>
+    <label class="checkline"><input id="scenarioLoop" type="checkbox"> Loop</label>
+    <button id="scenarioClose" style="margin-left:auto">Close</button>
+  </div>
+
+  <div id="scenarioTools">
+    <select id="scenarioEffectType">
+      <option value="smoke">Smoke</option>
+      <option value="light">Light</option>
+      <option value="fire">Fire</option>
+      <option value="rain">Rain</option>
+      <option value="explosion">Explosion</option>
+      <option value="magic">Magic Burst</option>
+    </select>
+    <button id="scenarioAddEffect">+ Add Effect Clip</button>
+    <button id="scenarioAddSelected">+ Capture Selected Layer</button>
+    <span class="scenario-divider"></span>
+    <span class="scenario-selected-note" id="scenarioSelectedInfo">No clip selected</span>
+    <label>Start <input id="scenarioClipStart" type="number" min="0" step="0.1" disabled></label>
+    <label>Duration <input id="scenarioClipDuration" type="number" min="0.1" step="0.1" disabled></label>
+    <label class="checkline"><input id="scenarioClipMaster" type="checkbox" disabled> M</label>
+    <label class="checkline"><input id="scenarioClipPlayer" type="checkbox" disabled> P</label>
+    <button id="scenarioPickPosition" disabled>Pick Position on Map</button>
+    <button id="scenarioDuplicateClip" disabled>Duplicate</button>
+    <button id="scenarioDeleteClip" class="danger" disabled>Delete</button>
+    <span class="scenario-divider"></span>
+    <label>Timeline zoom <input id="scenarioZoom" type="range" min="30" max="220" step="5" value="70"></label>
+  </div>
+
+  <div id="scenarioTimelineScroll">
+    <div id="scenarioTimelineInner"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   VIEW / SYNC
+   ========================================================= */
+const params = new URLSearchParams(location.search);
+const IS_PLAYER = params.get("view") === "player";
+const CHANNEL_NAME = "battlemap-webgl-sync-v7";
+const channel = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_NAME) : null;
+let playerWindow = null;
+
+if (IS_PLAYER) {
+  document.getElementById("sidebar").classList.add("hidden");
+  document.getElementById("playerBadge").classList.remove("hidden");
+  document.getElementById("status").classList.add("hidden");
+}
+
+/* =========================================================
+   SCENE MODEL
+   Coordinates use fixed world units. Master / Player windows
+   can have different sizes without shifting scene objects.
+   ========================================================= */
+function uid(prefix="id") {
+  return prefix + "_" + Math.random().toString(36).slice(2,10);
+}
+
+function defaultScene() {
+  return {
+    version: 6,
+    settings: {
+      worldWidth: 1920,
+      worldHeight: 1080,
+      gridEnabled: true,
+      gridSize: 64,
+      gridOpacity: 0.12,
+      backgroundImage: "",
+      backgroundFit: "stretch",
+      masterFxGlobal: true,
+      playerFxGlobal: true,
+      ambient: 0.34
+    },
+    programAudio: {
+      explosion: { src:"", label:"", volume:1, muted:false },
+      fire: { src:"", label:"", volume:0.8, muted:false },
+      rain: { src:"", label:"", volume:0.8, muted:false },
+      magic: { src:"", label:"", volume:1, muted:false },
+      ambient: { src:"", label:"", volume:0.7, muted:false }
+    },
+    camera: { x: 960, y: 540, zoom: 1 },
+    fog: {
+      base: "hidden", // hidden = fully covered; revealed = clear
+      strokes: []
+    },
+    layers: [
+      {
+        id: uid("wind"),
+        type: "wind",
+        name: "Wind",
+        showMaster: true,
+        showPlayer: true,
+        props: { x: 22, y: -8, turbulenceScale: 1.0 }
+      },
+      {
+        id: uid("fog"),
+        type: "fog",
+        name: "Fog of War",
+        showMaster: true,
+        showPlayer: true,
+        props: { opacity: 0.82, color: "#101216", colorAlpha: 1 }
+      }
+    ]
+  };
+}
+
+let scene = defaultScene();
+let selectedId = null;
+let placementDraft = null;
+let tool = "select";
+let spaceHeld = false;
+let backgroundTextureData = "";
+let syncTimer = null;
+let localCamera = { x: 960, y: 540, zoom: 1 };
+let hoverScreenPos = null;
+let hoverWorldPos = null;
+
+/* =========================================================
+   SCENARIO / TIMELINE STATE
+   Scenarios are intentionally separate from scene JSON.
+   ========================================================= */
+function defaultScenario(){
+  return {
+    version:1,
+    name:"New Scenario",
+    duration:30,
+    loop:false,
+    clips:[]
+  };
+}
+let scenario=defaultScenario();
+let scenarioSelectedClipId=null;
+let scenarioPickPositionMode=false;
+const scenarioRuntime={
+  playing:false,
+  live:false,
+  time:0,
+  active:new Map()
+};
+const SCENARIO_LABEL_WIDTH=170;
+
+function scenarioSelectedClip(){
+  return scenario.clips.find(c=>c.id===scenarioSelectedClipId)||null;
+}
+function scenarioPxPerSecond(){
+  const el=document.getElementById("scenarioZoom");
+  return Math.max(20,Number(el?.value)||70);
+}
+function formatScenarioTime(sec){
+  sec=Math.max(0,Number(sec)||0);
+  const m=Math.floor(sec/60);
+  const s=Math.floor(sec%60);
+  const cs=Math.floor((sec-Math.floor(sec))*100);
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${String(cs).padStart(2,"0")}`;
+}
+function scenarioMaxClipEnd(){
+  return scenario.clips.reduce((m,c)=>Math.max(m,(Number(c.start)||0)+(Number(c.duration)||0)),0);
+}
+function normalizeScenario(input){
+  const out=input&&typeof input==="object"?input:defaultScenario();
+  out.version=1;
+  out.name=String(out.name||"Scenario");
+  out.duration=Math.max(.1,Number(out.duration)||30);
+  out.loop=!!out.loop;
+  out.clips=Array.isArray(out.clips)?out.clips:[];
+  for(const c of out.clips){
+    c.id=c.id||uid("clip");
+    c.name=String(c.name||c.template?.name||"Clip");
+    c.start=Math.max(0,Number(c.start)||0);
+    c.duration=Math.max(.1,Number(c.duration)||1);
+    c.template=c.template||makeScenarioTemplate("smoke");
+    c.template.showMaster=c.template.showMaster!==false;
+    c.template.showPlayer=c.template.showPlayer!==false;
+    if(c.template.props?.startTime)c.template.props.startTime=0;
+    delete c.template.__scenarioRuntime;
+  }
+  out.duration=Math.max(out.duration,scenarioMaxClipEndFor(out.clips));
+  return out;
+}
+function scenarioMaxClipEndFor(clips){
+  return (clips||[]).reduce((m,c)=>Math.max(m,(Number(c.start)||0)+(Number(c.duration)||0)),0);
+}
+
+function serializeScene() {
+  return JSON.parse(JSON.stringify(scene));
+}
+function serializeSceneForSave(){
+  const copy=serializeScene();
+  copy.layers=(copy.layers||[]).filter(l=>!l.__scenarioRuntime);
+  return copy;
+}
+
+function normalizeSoundSlot(v,defaultVolume=1){
+  if(!v)return {src:"",label:"",volume:defaultVolume,muted:false};
+  if(typeof v==="string")return {src:v,label:v,volume:defaultVolume,muted:false};
+  return {
+    src:v.src||"",
+    label:v.label||v.src||"",
+    volume:Math.max(0,Math.min(1,Number(v.volume??defaultVolume))),
+    muted:!!v.muted
+  };
+}
+function ensureAudioConfig(){
+  scene.programAudio=scene.programAudio||{};
+  scene.programAudio.explosion=normalizeSoundSlot(scene.programAudio.explosion,1);
+  scene.programAudio.fire=normalizeSoundSlot(scene.programAudio.fire,.8);
+  scene.programAudio.rain=normalizeSoundSlot(scene.programAudio.rain,.8);
+  scene.programAudio.magic=normalizeSoundSlot(scene.programAudio.magic,1);
+  scene.programAudio.ambient=normalizeSoundSlot(scene.programAudio.ambient,.7);
+}
+function soundSlot(key){
+  ensureAudioConfig();
+  return scene.programAudio[key];
+}
+function playOneShotSound(key){
+  const s=soundSlot(key);
+  if(soundsPaused||!s.src||s.muted)return;
+  const a=new Audio(s.src);
+  a.volume=Math.max(0,Math.min(1,s.volume??1));
+  a.play().catch(()=>{});
+}
+function syncLoopAudio(key,shouldPlay){
+  const a=audioLoops[key];
+  if(!a)return;
+  const s=soundSlot(key);
+  if(a.dataset.src!==(s.src||"")){
+    a.dataset.src=s.src||"";
+    a.src=s.src||"";
+  }
+  a.volume=s.muted?0:Math.max(0,Math.min(1,s.volume??1));
+  if(soundsPaused||!shouldPlay||!s.src||s.muted){
+    if(!a.paused){try{a.pause();a.currentTime=0;}catch(e){}}
+    return;
+  }
+  if(a.paused)a.play().catch(()=>{});
+}
+function updateAudioPlayback(){
+  const fireActive=fxGlobalEnabled()&&scene.layers.some(l=>l.type==="fire"&&viewVisible(l));
+  const rainActive=fxGlobalEnabled()&&scene.layers.some(l=>l.type==="rain"&&viewVisible(l));
+  syncLoopAudio("fire",fireActive);
+  syncLoopAudio("rain",rainActive);
+  syncLoopAudio("ambient",true);
+}
+function syncAudioUI(){
+  if(IS_PLAYER)return;
+  ensureAudioConfig();
+  for(const key of ["explosion","fire","rain","magic","ambient"]){
+    const cap=key.charAt(0).toUpperCase()+key.slice(1);
+    const slot=soundSlot(key);
+    const t=document.getElementById("sound"+cap);
+    const vr=document.getElementById("sound"+cap+"Vol");
+    const vn=document.getElementById("sound"+cap+"VolVal");
+    const mute=document.getElementById("sound"+cap+"Mute");
+    if(t)t.value=slot.label||slot.src||"";
+    if(vr)vr.value=slot.volume;
+    if(vn)vn.value=Number(slot.volume).toFixed(2);
+    if(mute)mute.checked=!!slot.muted;
+  }
+}
+function stopAllAudio(){
+  soundsPaused=true;
+  for(const a of Object.values(audioLoops)){
+    try{a.pause();a.currentTime=0;}catch(e){}
+  }
+}
+
+function sendState(immediate=false) {
+  if (IS_PLAYER) return;
+  const doSend = () => {
+    const outgoing=serializeScene();
+    if(!scenarioRuntime.live){
+      outgoing.layers=(outgoing.layers||[]).filter(l=>!l.__scenarioRuntime);
+    }
+    const payload = { type:"scene", scene: outgoing };
+    if (channel) channel.postMessage(payload);
+    if (playerWindow && !playerWindow.closed) {
+      try { playerWindow.postMessage(payload, "*"); } catch(e){}
+    }
+  };
+  if (immediate) {
+    clearTimeout(syncTimer);
+    doSend();
+  } else {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(doSend, 40);
+  }
+}
+
+function sendCamera(){
+  /* Master and Player now use independent cameras.
+     Camera state is intentionally not synchronized. */
+}
+
+function acceptMessage(data) {
+  if(!data||!IS_PLAYER)return;
+  if(data.type!=="scene")return;
+  const oldTransientIds=new Set((scene.layers||[]).filter(l=>l.temporary).map(l=>l.id));
+  const incoming=migrateScene(data.scene);
+  const newTransient=(incoming.layers||[]).filter(l=>l.temporary&&!oldTransientIds.has(l.id));
+  scene=incoming;
+  ensureAudioConfig();
+  selectedId=null;
+  clampCameraToWorld();
+  applySceneSettingsToUI();
+  rebuildFog();
+  ensureBackgroundTexture();
+  resetRuntimeForDeletedLayers();
+  for(const l of newTransient){
+    if(l.type==="explosion")playOneShotSound("explosion");
+    if(l.type==="magic")playOneShotSound("magic");
+  }
+}
+
+if (channel) {
+  channel.onmessage = e => {
+    if (IS_PLAYER) acceptMessage(e.data);
+    else if (e.data && e.data.type === "requestScene") sendState(true);
+  };
+}
+window.addEventListener("message", e => {
+  if (IS_PLAYER) acceptMessage(e.data);
+  else if (e.data && e.data.type === "requestScene") sendState(true);
+});
+
+if (IS_PLAYER) {
+  setTimeout(() => {
+    if (channel) channel.postMessage({type:"requestScene"});
+    if (window.opener) window.opener.postMessage({type:"requestScene"}, "*");
+  }, 100);
+}
+
+/* =========================================================
+   DOM
+   ========================================================= */
+const stage = document.getElementById("stage");
+const glCanvas = document.getElementById("glCanvas");
+const overlayCanvas = document.getElementById("overlayCanvas");
+const fogCanvas = document.getElementById("fogCanvas");
+const selCanvas = document.getElementById("selectionCanvas");
+const overlayCtx = overlayCanvas.getContext("2d");
+const fogCtx = fogCanvas.getContext("2d");
+const selCtx = selCanvas.getContext("2d");
+const statusEl = document.getElementById("status");
+
+let polygonDraftPoints = [];
+let dragAction = null;
+const audioLoops = {
+  fire: new Audio(),
+  rain: new Audio(),
+  ambient: new Audio()
+};
+Object.values(audioLoops).forEach(a=>{a.loop=true; a.preload="auto";});
+let soundsPaused=false;
+
+/* =========================================================
+   WEBGL SETUP
+   ========================================================= */
+const gl = glCanvas.getContext("webgl2", { alpha:false, antialias:true });
+if (!gl) alert("WebGL2 is required for this prototype.");
+
+const MAX_WALLS = 64;
+const MAX_LIGHTS = 16;
+const MAX_PARTICLES_PER_EMITTER = 3500;
+
+function compileShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+    throw new Error(gl.getShaderInfoLog(shader));
+  return shader;
+}
+function createProgram(vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,compileShader(gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,compileShader(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))
+    throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+
+const quadVS = `#version 300 es
+in vec2 aPosition;
+out vec2 vUV;
+void main(){vUV=aPosition*0.5+0.5;gl_Position=vec4(aPosition,0.,1.);}
+`;
+
+const backgroundFS = `#version 300 es
+precision highp float;
+#define MAX_WALLS 64
+#define MAX_LIGHTS 16
+in vec2 vUV;
+out vec4 outColor;
+uniform vec2 uResolution;
+uniform vec2 uCameraCenter;
+uniform float uViewScale;
+uniform vec2 uWorldSize;
+uniform int uWallCount;
+uniform int uLightCount;
+uniform vec4 uWalls[MAX_WALLS];
+uniform vec4 uLights[MAX_LIGHTS];
+uniform vec3 uLightColors[MAX_LIGHTS];
+uniform float uAmbient;
+uniform bool uGridEnabled;
+uniform float uGridSize;
+uniform float uGridOpacity;
+uniform sampler2D uBackground;
+uniform bool uHasBackground;
+uniform int uBackgroundFit;
+uniform vec2 uBackgroundAspect;
+
+float cross2(vec2 a,vec2 b){return a.x*b.y-a.y*b.x;}
+bool intersectSeg(vec2 a,vec2 b,vec2 c,vec2 d){
+  vec2 r=b-a,s=d-c; float den=cross2(r,s);
+  if(abs(den)<.00001)return false;
+  float t=cross2(c-a,s)/den, u=cross2(c-a,r)/den;
+  return t>.002&&t<.998&&u>=0.&&u<=1.;
+}
+bool blocked(vec2 lp,vec2 p){
+  for(int i=0;i<MAX_WALLS;i++){
+    if(i>=uWallCount)break;
+    vec4 w=uWalls[i];
+    if(intersectSeg(lp,p,w.xy,w.zw))return true;
+  }
+  return false;
+}
+vec2 fitUV(vec2 uv){
+  if(uBackgroundFit==0) return uv; // stretch
+  float canvasAspect=uWorldSize.x/uWorldSize.y;
+  float imageAspect=uBackgroundAspect.x/uBackgroundAspect.y;
+  vec2 outUV=uv;
+  if(uBackgroundFit==1){ // contain
+    if(canvasAspect>imageAspect){
+      float scale=imageAspect/canvasAspect;
+      outUV.x=(uv.x-.5)/scale+.5;
+    }else{
+      float scale=canvasAspect/imageAspect;
+      outUV.y=(uv.y-.5)/scale+.5;
+    }
+  }else{ // cover
+    if(canvasAspect>imageAspect){
+      float scale=canvasAspect/imageAspect;
+      outUV.y=(uv.y-.5)/scale+.5;
+    }else{
+      float scale=imageAspect/canvasAspect;
+      outUV.x=(uv.x-.5)/scale+.5;
+    }
+  }
+  return outUV;
+}
+void main(){
+  vec2 screenP=vec2(vUV.x*uResolution.x,(1.-vUV.y)*uResolution.y);
+  vec2 p=(screenP-uResolution*.5)/uViewScale+uCameraCenter;
+
+  vec3 base=vec3(.035);
+  bool inside=p.x>=0.&&p.y>=0.&&p.x<=uWorldSize.x&&p.y<=uWorldSize.y;
+  if(inside){
+    base=vec3(.12,.115,.105);
+    if(uHasBackground){
+      vec2 uv=fitUV(vec2(p.x/uWorldSize.x,1.-p.y/uWorldSize.y));
+      if(uv.x>=0.&&uv.x<=1.&&uv.y>=0.&&uv.y<=1.)base=texture(uBackground,uv).rgb;
+      else base=vec3(.035);
+    }
+  }
+
+  if(uGridEnabled&&inside){
+    vec2 g=mod(p,max(uGridSize,2.));
+    float line=(1.-smoothstep(.7,1.7,min(g.x,uGridSize-g.x)))+
+               (1.-smoothstep(.7,1.7,min(g.y,uGridSize-g.y)));
+    base+=vec3(min(line,1.)*uGridOpacity);
+  }
+
+  vec3 lightAccum=vec3(uAmbient);
+  for(int i=0;i<MAX_LIGHTS;i++){
+    if(i>=uLightCount)break;
+    vec4 l=uLights[i];
+    float d=distance(p,l.xy);
+    if(d<l.z && !blocked(l.xy,p)){
+      float f=1.-d/l.z; f=f*f;
+      lightAccum += uLightColors[i]*f*l.w;
+    }
+  }
+  vec3 color=base*lightAccum;
+  color=pow(max(color,vec3(0.)),vec3(.88));
+  outColor=vec4(color,1.);
+}
+`;
+
+const smokeVS = `#version 300 es
+precision highp float;
+#define MAX_WALLS 64
+#define MAX_LIGHTS 16
+in vec2 aPosition;
+in float aSize;
+in float aAlpha;
+uniform vec2 uResolution;
+uniform vec2 uCameraCenter;
+uniform float uViewScale;
+uniform int uWallCount;
+uniform int uLightCount;
+uniform vec4 uWalls[MAX_WALLS];
+uniform vec4 uLights[MAX_LIGHTS];
+uniform vec3 uLightColors[MAX_LIGHTS];
+out float vAlpha;
+out vec3 vLight;
+float cross2(vec2 a,vec2 b){return a.x*b.y-a.y*b.x;}
+bool intersectSeg(vec2 a,vec2 b,vec2 c,vec2 d){
+  vec2 r=b-a,s=d-c;float den=cross2(r,s);
+  if(abs(den)<.00001)return false;
+  float t=cross2(c-a,s)/den,u=cross2(c-a,r)/den;
+  return t>.002&&t<.998&&u>=0.&&u<=1.;
+}
+bool blocked(vec2 lp,vec2 p){
+  for(int i=0;i<MAX_WALLS;i++){
+    if(i>=uWallCount)break;
+    vec4 w=uWalls[i];
+    if(intersectSeg(lp,p,w.xy,w.zw))return true;
+  }
+  return false;
+}
+void main(){
+  vec2 screen=(aPosition-uCameraCenter)*uViewScale+uResolution*.5;
+  vec2 clip=vec2(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.);
+  gl_Position=vec4(clip,0.,1.);
+  gl_PointSize=max(1.,aSize*uViewScale);
+  vAlpha=aAlpha;
+  vec3 illum=vec3(.34);
+  for(int i=0;i<MAX_LIGHTS;i++){
+    if(i>=uLightCount)break;
+    vec4 l=uLights[i];
+    float d=distance(aPosition,l.xy);
+    if(d<l.z&&!blocked(l.xy,aPosition)){
+      float f=1.-d/l.z; f*=f;
+      illum+=uLightColors[i]*f*l.w;
+    }
+  }
+  vLight=illum;
+}
+`;
+
+const smokeFS = `#version 300 es
+precision highp float;
+in float vAlpha;
+in vec3 vLight;
+out vec4 outColor;
+uniform vec3 uSmokeColor;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
+void main(){
+  vec2 uv=gl_PointCoord*2.-1.;
+  float r=length(uv);
+  float a=atan(uv.y,uv.x);
+  float edge=.87+sin(a*5.)*.055+sin(a*9.+1.7)*.025;
+  float alpha=1.-smoothstep(.32,edge,r);
+  float n=hash(floor(gl_PointCoord*14.));
+  alpha*=.82+n*.18;
+  alpha*=vAlpha;
+  if(alpha<.01)discard;
+  vec3 c=uSmokeColor*(.46+vLight*.55);
+  outColor=vec4(c,alpha);
+}
+`;
+
+const lineVS = `#version 300 es
+in vec2 aPosition;
+uniform vec2 uResolution;
+uniform vec2 uCameraCenter;
+uniform float uViewScale;
+void main(){
+  vec2 screen=(aPosition-uCameraCenter)*uViewScale+uResolution*.5;
+  vec2 c=vec2(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.);
+  gl_Position=vec4(c,0.,1.);
+}
+`;
+const lineFS = `#version 300 es
+precision highp float;
+uniform vec4 uColor;
+out vec4 outColor;
+void main(){outColor=uColor;}
+`;
+
+const fxVS = `#version 300 es
+precision highp float;
+in vec2 aPosition;
+in float aSize;
+in float aAlpha;
+in vec3 aColor;
+uniform vec2 uResolution;
+uniform vec2 uCameraCenter;
+uniform float uViewScale;
+out float vAlpha;
+out vec3 vColor;
+void main(){
+  vec2 screen=(aPosition-uCameraCenter)*uViewScale+uResolution*.5;
+  vec2 clip=vec2(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.);
+  gl_Position=vec4(clip,0.,1.);
+  gl_PointSize=max(1.,aSize*uViewScale);
+  vAlpha=aAlpha;
+  vColor=aColor;
+}
+`;
+
+const fxFS = `#version 300 es
+precision highp float;
+in float vAlpha;
+in vec3 vColor;
+out vec4 outColor;
+void main(){
+  vec2 uv=gl_PointCoord*2.-1.;
+  float r=length(uv);
+  float soft=1.-smoothstep(.35,1.,r);
+  soft*=1.-smoothstep(.78,1.,r);
+  float center=1.-smoothstep(0.,.65,r);
+  float alpha=vAlpha*soft;
+  if(alpha<.008)discard;
+  vec3 c=vColor*(1.+center*.32);
+  outColor=vec4(c,alpha);
+}
+`;
+
+const bgProgram=createProgram(quadVS,backgroundFS);
+const smokeProgram=createProgram(smokeVS,smokeFS);
+const lineProgram=createProgram(lineVS,lineFS);
+const fxProgram=createProgram(fxVS,fxFS);
+
+const quadBuffer=gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER,quadBuffer);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+
+const smokeBuffer=gl.createBuffer();
+const lineBuffer=gl.createBuffer();
+const fxBuffer=gl.createBuffer();
+
+const bgTexture=gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D,bgTexture);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([70,68,64,255]));
+let bgImageSize={w:1,h:1};
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+function cssToRgb01(hex){
+  const s=hex.replace("#","");
+  const n=parseInt(s.length===3?s.split("").map(c=>c+c).join(""):s,16);
+  return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];
+}
+function viewVisible(layer){
+  return IS_PLAYER ? layer.showPlayer : layer.showMaster;
+}
+function fxGlobalEnabled(){
+  return IS_PLAYER ? scene.settings.playerFxGlobal : scene.settings.masterFxGlobal;
+}
+function layerById(id){return scene.layers.find(l=>l.id===id);}
+function layersOf(type){return scene.layers.filter(l=>l.type===type);}
+function worldWidth(){return Math.max(100,Number(scene.settings.worldWidth)||1920)}
+function worldHeight(){return Math.max(100,Number(scene.settings.worldHeight)||1080)}
+function baseViewScale(){return Math.min(glCanvas.width/worldWidth(),glCanvas.height/worldHeight())}
+function viewScale(){return baseViewScale()*Math.max(.08,Math.min(16,localCamera?.zoom??1))}
+function clampCameraToWorld(){
+  const c = localCamera;
+  c.x = Math.max(0, Math.min(worldWidth(), Number(c.x)||worldWidth()/2));
+  c.y = Math.max(0, Math.min(worldHeight(), Number(c.y)||worldHeight()/2));
+  c.zoom = Math.max(.08, Math.min(16, Number(c.zoom)||1));
+}
+function resetLocalCamera(){
+  localCamera = { x: worldWidth()/2, y: worldHeight()/2, zoom: 1 };
+}
+function camera(){
+  clampCameraToWorld();
+  return localCamera;
+}
+function worldToScreen(x,y){
+  const c=camera(),z=viewScale();
+  return {x:(x-c.x)*z+glCanvas.width/2,y:(y-c.y)*z+glCanvas.height/2};
+}
+function screenToWorld(x,y){
+  const c=camera(),z=viewScale();
+  return {x:(x-glCanvas.width/2)/z+c.x,y:(y-glCanvas.height/2)/z+c.y};
+}
+function worldRadiusToScreen(r){return r*viewScale()}
+function screenRadiusToWorld(r){return r/viewScale()}
+function pointerScreen(e){
+  const r=glCanvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*glCanvas.width/r.width,y:(e.clientY-r.top)*glCanvas.height/r.height};
+}
+function pointerPos(e){const p=pointerScreen(e);return screenToWorld(p.x,p.y);}
+function colorAlpha(obj,key){return Math.max(0,Math.min(1,Number(obj[key+"Alpha"]??1)))}
+function random(a,b){return a+Math.random()*(b-a)}
+function rgbaCss(hex,alpha=1){
+  const c=cssToRgb01(hex||"#ffffff").map(v=>Math.round(v*255));
+  return `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0,Math.min(1,alpha))})`;
+}
+function pointInPolygon(point,pts){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    const hit=((yi>point.y)!=(yj>point.y))&&(point.x<(xj-xi)*(point.y-yi)/(yj-yi+1e-9)+xi);
+    if(hit)inside=!inside;
+  }
+  return inside;
+}
+
+function migrateScene(input){
+  if(!input)return defaultScene();
+  if((input.version||0)>=4){
+    input.settings=input.settings||{};
+    input.settings.worldWidth=Number(input.settings.worldWidth)||1920;
+    input.settings.worldHeight=Number(input.settings.worldHeight)||1080;
+    input.programAudio=input.programAudio||{};
+    return input;
+  }
+  const ww=1920,wh=1080,m=Math.min(ww,wh);
+  input.settings=input.settings||{};input.settings.worldWidth=ww;input.settings.worldHeight=wh;
+  input.programAudio=input.programAudio||{};
+  for(const l of input.layers||[]){
+    const p=l.props||{};
+    if(l.type==="wall"){p.x1*=ww;p.x2*=ww;p.y1*=wh;p.y2*=wh;}
+    else if(["smoke","light","fire","explosion","magic"].includes(l.type)){
+      p.x*=ww;p.y*=wh;
+      if(l.type==="smoke")p.spread=(p.spread??.012)*m;
+      if(l.type==="light")p.radius=(p.radius??.32)*m;
+      if(l.type==="fire"){p.spread=(p.spread??.014)*m;p.lightRadius=(p.lightRadius??.16)*m;}
+      if(l.type==="explosion"||l.type==="magic")p.lightRadius=(p.lightRadius??.3)*m;
+    }
+  }
+  for(const st of input.fog?.strokes||[]){st.x*=ww;st.y*=wh;st.r*=m;}
+  input.version=5;return input;
+}
+function mulberry32(seed){
+  return function(){
+    let t=seed+=0x6D2B79F5;
+    t=Math.imul(t^t>>>15,t|1);
+    t^=t+Math.imul(t^t>>>7,t|61);
+    return ((t^t>>>14)>>>0)/4294967296;
+  };
+}
+function transientAge(layer){
+  return Math.max(0,(Date.now()-(layer.props.startTime||Date.now()))/1000);
+}
+
+function activeWalls(forLight=true){
+  return scene.layers.filter(l=>l.type==="wall"&&viewVisible(l)&&
+    (forLight ? l.props.blocksLight : l.props.blocksSmoke));
+}
+function activeLights(){
+  if(!fxGlobalEnabled()) return [];
+  const out=[];
+  const now=Date.now()/1000;
+  for(const l of scene.layers){
+    if(!viewVisible(l))continue;
+    if(l.type==="light"){
+      out.push(l);
+    }else if(l.type==="fire" && l.props.castLight!==false){
+      const seed=(l.props.seed||1)*0.001;
+      const flicker=.88+.12*Math.sin(now*10.7+seed)+.05*Math.sin(now*19.3+seed*2.);
+      out.push({
+        type:"light",
+        props:{
+          x:l.props.x,y:l.props.y,
+          radius:l.props.lightRadius??.16,
+          intensity:(l.props.lightIntensity??1.35)*Math.max(.55,flicker)*colorAlpha(l.props,"lightColor"),
+          color:l.props.lightColor||"#ff9a45"
+        }
+      });
+    }else if((l.type==="explosion"||l.type==="magic") && transientAge(l)<(l.props.flashDuration??.45)){
+      const age=transientAge(l), fd=l.props.flashDuration??.45;
+      const k=1-Math.min(1,age/fd);
+      out.push({
+        type:"light",
+        props:{
+          x:l.props.x,y:l.props.y,
+          radius:(l.props.lightRadius??.35)*(1+(1-k)*.35),
+          intensity:(l.props.lightIntensity??3.0)*k*colorAlpha(l.props,"lightColor"),
+          color:l.props.lightColor||(l.type==="magic"?"#7d78ff":"#ff9a48")
+        }
+      });
+    }
+    if(out.length>=MAX_LIGHTS)break;
+  }
+  return out.slice(0,MAX_LIGHTS);
+}
+function activeWind(){
+  if(!fxGlobalEnabled()) return {x:0,y:0,turbulenceScale:1};
+  let x=0,y=0,t=1;
+  for(const l of scene.layers){
+    if(l.type==="wind"&&viewVisible(l)){
+      x+=l.props.x||0; y+=l.props.y||0; t*=l.props.turbulenceScale??1;
+    }
+  }
+  return {x,y,turbulenceScale:t};
+}
+
+function buildWallArray(){
+  const ws=activeWalls(true).slice(0,MAX_WALLS);
+  const data=new Float32Array(MAX_WALLS*4);
+  ws.forEach((w,i)=>{
+    data[i*4]=w.props.x1;
+    data[i*4+1]=w.props.y1;
+    data[i*4+2]=w.props.x2;
+    data[i*4+3]=w.props.y2;
+  });
+  return {data,count:ws.length};
+}
+function buildLightArrays(){
+  const ls=activeLights();
+  const data=new Float32Array(MAX_LIGHTS*4);
+  const colors=new Float32Array(MAX_LIGHTS*3);
+  ls.forEach((l,i)=>{
+    data[i*4]=l.props.x;
+    data[i*4+1]=l.props.y;
+    data[i*4+2]=l.props.radius;
+    data[i*4+3]=(l.props.intensity??1)*colorAlpha(l.props,"color");
+    const c=cssToRgb01(l.props.color||"#ffd28a");
+    colors[i*3]=c[0];colors[i*3+1]=c[1];colors[i*3+2]=c[2];
+  });
+  return {data,colors,count:ls.length};
+}
+
+function sendWorldUniforms(program){
+  const w=buildWallArray(), l=buildLightArrays();
+  gl.uniform2f(gl.getUniformLocation(program,"uResolution"),glCanvas.width,glCanvas.height);
+  const cc=camera(),vs=viewScale();
+  const camLoc=gl.getUniformLocation(program,"uCameraCenter"); if(camLoc)gl.uniform2f(camLoc,cc.x,cc.y);
+  const scLoc=gl.getUniformLocation(program,"uViewScale"); if(scLoc)gl.uniform1f(scLoc,vs);
+  const wsLoc=gl.getUniformLocation(program,"uWorldSize"); if(wsLoc)gl.uniform2f(wsLoc,worldWidth(),worldHeight());
+  const wl=gl.getUniformLocation(program,"uWallCount");
+  if(wl) gl.uniform1i(wl,w.count);
+  const ll=gl.getUniformLocation(program,"uLightCount");
+  if(ll) gl.uniform1i(ll,l.count);
+  const uw=gl.getUniformLocation(program,"uWalls");
+  if(uw) gl.uniform4fv(uw,w.data);
+  const ul=gl.getUniformLocation(program,"uLights");
+  if(ul) gl.uniform4fv(ul,l.data);
+  const uc=gl.getUniformLocation(program,"uLightColors");
+  if(uc) gl.uniform3fv(uc,l.colors);
+}
+
+/* =========================================================
+   BACKGROUND
+   ========================================================= */
+function ensureBackgroundTexture(){
+  const data=scene.settings.backgroundImage||"";
+  if(data===backgroundTextureData)return;
+  backgroundTextureData=data;
+  if(!data){
+    gl.bindTexture(gl.TEXTURE_2D,bgTexture);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([70,68,64,255]));
+    bgImageSize={w:1,h:1};
+    return;
+  }
+  const img=new Image();
+  img.onload=()=>{
+    bgImageSize={w:img.naturalWidth||1,h:img.naturalHeight||1};
+    gl.bindTexture(gl.TEXTURE_2D,bgTexture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  };
+  img.src=data;
+}
+
+/* =========================================================
+   FOG OF WAR
+   ========================================================= */
+function fogLayer(){
+  return scene.layers.find(l=>l.type==="fog");
+}
+function fogShouldShow(){
+  const f=fogLayer();
+  return !!(f&&viewVisible(f));
+}
+function fogStyle(){
+  const f=fogLayer();
+  return f ? f.props : {opacity:.82,color:"#101216"};
+}
+function applyFogStroke(s){
+  const pt=worldToScreen(s.x,s.y);
+  const x=pt.x,y=pt.y;
+  const r=worldRadiusToScreen(s.r);
+  fogCtx.save();
+  fogCtx.globalCompositeOperation=s.mode==="reveal"?"destination-out":"source-over";
+  const style=fogStyle();
+  fogCtx.fillStyle=style.color||"#101216";
+  fogCtx.globalAlpha=(style.opacity??.82)*colorAlpha(style,"color");
+  fogCtx.beginPath();
+  fogCtx.arc(x,y,r,0,Math.PI*2);
+  fogCtx.fill();
+  fogCtx.restore();
+}
+function rebuildFog(){
+  fogCtx.clearRect(0,0,fogCanvas.width,fogCanvas.height);
+  if(scene.fog.base==="hidden"){
+    const s=fogStyle();
+    fogCtx.save();
+    fogCtx.globalAlpha=(s.opacity??.82)*colorAlpha(s,"color");
+    fogCtx.fillStyle=s.color||"#101216";
+    const a=worldToScreen(0,0), b=worldToScreen(worldWidth(),worldHeight());
+    fogCtx.fillRect(a.x,a.y,b.x-a.x,b.y-a.y);
+    fogCtx.restore();
+  }
+  for(const s of scene.fog.strokes) applyFogStroke(s);
+  fogCanvas.style.display=fogShouldShow()?"block":"none";
+}
+function addFogStroke(wx,wy,mode){
+  const brush=Number(document.getElementById("fogBrush").value);
+  const stroke={x:wx,y:wy,r:brush,mode};
+  scene.fog.strokes.push(stroke);
+  applyFogStroke(stroke);
+  sendState(false);
+}
+
+/* =========================================================
+   PARTICLES
+   ========================================================= */
+const runtimes=new Map();
+
+function ensureRuntime(layer){
+  if(!runtimes.has(layer.id)) runtimes.set(layer.id,{particles:[],acc:0});
+  return runtimes.get(layer.id);
+}
+function resetRuntimeForDeletedLayers(){
+  for(const id of [...runtimes.keys()]){
+    if(!layerById(id))runtimes.delete(id);
+  }
+}
+function createParticle(layer,rt){
+  if(rt.particles.length>=MAX_PARTICLES_PER_EMITTER)return;
+  const p=layer.props;
+  const spread=p.spread??13;
+  const x=p.x+random(-spread,spread);
+  const y=p.y+random(-spread,spread);
+  rt.particles.push({
+    x,y,
+    vx:random(-(p.drift??12),(p.drift??12)),
+    vy:random(-12,6),
+    age:0,
+    life:random(p.minLife??5,p.maxLife??9),
+    size:random(p.minSize??40,p.maxSize??90),
+    seed:Math.random()*1000
+  });
+}
+
+function segmentIntersection(ax,ay,bx,by,cx,cy,dx,dy){
+  const rx=bx-ax,ry=by-ay,sx=dx-cx,sy=dy-cy;
+  const den=rx*sy-ry*sx;
+  if(Math.abs(den)<1e-5)return null;
+  const qx=cx-ax,qy=cy-ay;
+  const t=(qx*sy-qy*sx)/den;
+  const u=(qx*ry-qy*rx)/den;
+  return (t>=0&&t<=1&&u>=0&&u<=1)?{t,u}:null;
+}
+function collideParticle(p,oldX,oldY){
+  for(const w of activeWalls(false)){
+    const x1=w.props.x1,y1=w.props.y1;
+    const x2=w.props.x2,y2=w.props.y2;
+    const hit=segmentIntersection(oldX,oldY,p.x,p.y,x1,y1,x2,y2);
+    if(!hit)continue;
+    let tx=x2-x1,ty=y2-y1;
+    const len=Math.hypot(tx,ty)||1;tx/=len;ty/=len;
+    const nx=-ty,ny=tx;
+    const nv=p.vx*nx+p.vy*ny;
+    if(nv!==0){p.vx-=nv*nx*1.05;p.vy-=nv*ny*1.05;}
+    p.x=oldX+p.vx*.004;
+    p.y=oldY+p.vy*.004;
+  }
+}
+function updateSmoke(dt,time){
+  const wind=activeWind();
+  for(const layer of scene.layers){
+    if(layer.type!=="smoke")continue;
+    const rt=ensureRuntime(layer);
+    if(!fxGlobalEnabled()||!viewVisible(layer))continue;
+    const sp=layer.props;
+    rt.acc+=dt*(sp.emissionRate??35);
+    while(rt.acc>=1){createParticle(layer,rt);rt.acc-=1;}
+    for(let i=rt.particles.length-1;i>=0;i--){
+      const p=rt.particles[i];
+      p.age+=dt;
+      if(p.age>=p.life){rt.particles.splice(i,1);continue;}
+      const oldX=p.x,oldY=p.y;
+      const turb=(sp.turbulence??16)*wind.turbulenceScale;
+      p.vx+=Math.sin(time*1.7+p.seed+p.y*.012)*turb*dt;
+      p.vy+=Math.cos(time*1.2+p.seed+p.x*.009)*(turb*.35)*dt;
+      p.vx+=wind.x*dt;p.vy+=wind.y*dt;
+      p.vx*=Math.pow(.988,dt*60);p.vy*=Math.pow(.990,dt*60);
+      p.x+=p.vx*dt;p.y+=p.vy*dt;
+      collideParticle(p,oldX,oldY);
+      p.size+=(sp.growth??8)*dt;
+    }
+  }
+}
+
+function createFireParticle(layer,rt){
+  if(rt.particles.length>=MAX_PARTICLES_PER_EMITTER)return;
+  const p=layer.props, spread=p.spread??15;
+  rt.particles.push({
+    x:p.x+random(-spread,spread),
+    y:p.y+random(-spread*.45,spread*.45),
+    vx:random(-10,10),vy:random(-55,-28),
+    age:0,life:random(.55,1.35),
+    size:random(p.minSize??16,p.maxSize??34),
+    seed:Math.random()*1000,kind:"fire"
+  });
+}
+function updateFire(dt,time){
+  const wind=activeWind();
+  for(const layer of scene.layers){
+    if(layer.type!=="fire")continue;
+    const rt=ensureRuntime(layer);
+    if(!fxGlobalEnabled()||!viewVisible(layer))continue;
+    const p=layer.props;
+    rt.acc+=dt*(p.emissionRate??90);
+    while(rt.acc>=1){createFireParticle(layer,rt);rt.acc-=1;}
+    for(let i=rt.particles.length-1;i>=0;i--){
+      const q=rt.particles[i]; q.age+=dt;
+      if(q.age>=q.life){rt.particles.splice(i,1);continue;}
+      const oldX=q.x,oldY=q.y;
+      q.vx+=(wind.x*(p.windInfluence??.35))*dt;
+      q.vy+=(wind.y*(p.windInfluence??.35))*dt;
+      q.vx+=Math.sin(time*9+q.seed)*10*dt;
+      q.vx*=Math.pow(.972,dt*60);
+      q.x+=q.vx*dt;q.y+=q.vy*dt;
+      collideParticle(q,oldX,oldY);
+    }
+  }
+}
+
+function ensureRain(layer){
+  const rt=ensureRuntime(layer);
+  const target=Math.max(0,Math.floor(layer.props.density??280));
+  while(rt.particles.length<target){
+    rt.particles.push({x:0,y:0,age:999,life:1,size:1,seed:Math.random()});
+  }
+  if(rt.particles.length>target)rt.particles.length=target;
+  return rt;
+}
+function respawnRainDrop(d,layer){
+  const p=layer.props;
+  const tl=screenToWorld(-80,-80),br=screenToWorld(glCanvas.width+80,glCanvas.height+80);
+  d.x=random(tl.x,br.x);
+  d.y=random(tl.y,br.y);
+  d.age=0;
+  d.life=random(p.minLife??.35,p.maxLife??1.05);
+  d.size=random(p.minRadius??1.2,p.maxRadius??10);
+  d.seed=Math.random();
+}
+function updateRain(dt){
+  if(!fxGlobalEnabled())return;
+  for(const layer of scene.layers){
+    if(layer.type!=="rain"||!viewVisible(layer))continue;
+    const rt=ensureRain(layer),p=layer.props;
+    for(const d of rt.particles){
+      d.age+=dt*(p.speedFactor??1);
+      if(d.age>=d.life||d.age>998||!Number.isFinite(d.x)||!Number.isFinite(d.y))respawnRainDrop(d,layer);
+    }
+  }
+}
+
+function initTransient(layer){
+  const rt=ensureRuntime(layer);
+  if(rt.initialized)return rt;
+  rt.initialized=true;rt.elapsed=0;rt.particles=[];
+  const seed=(layer.props.seed||123456)>>>0;
+  const rnd=mulberry32(seed);
+  const count=Math.max(8,Math.floor(layer.props.particles??160));
+  const cx=layer.props.x,cy=layer.props.y;
+  const duration=layer.props.duration??2.3;
+  for(let i=0;i<count;i++){
+    const a=rnd()*Math.PI*2;
+    const speed=(layer.type==="magic"?90:140)+rnd()*(layer.type==="magic"?180:320);
+    const life=duration*(.35+rnd()*.55);
+    rt.particles.push({
+      x:cx,y:cy,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,
+      age:0,life,size:(layer.type==="magic"?5:4)+rnd()*(layer.type==="magic"?12:10),
+      seed:rnd()*1000,kind:layer.type==="magic"?"magic":"spark"
+    });
+  }
+  if(layer.type==="explosion"){
+    const smokeCount=Math.max(0,Math.floor(layer.props.smokeParticles??Math.floor(count*.28)));
+    const smokeSpread=layer.props.smokeSpread??24;
+    const smokeMinSize=layer.props.smokeMinSize??24;
+    const smokeMaxSize=layer.props.smokeMaxSize??70;
+    const smokeMinLife=layer.props.smokeMinLife??1.5;
+    const smokeMaxLife=layer.props.smokeMaxLife??4.2;
+    for(let i=0;i<smokeCount;i++){
+      const a=rnd()*Math.PI*2,speed=25+rnd()*75,dist=rnd()*smokeSpread;
+      rt.particles.push({
+        x:cx+Math.cos(a)*dist,y:cy+Math.sin(a)*dist,
+        vx:Math.cos(a)*speed,vy:Math.sin(a)*speed-20,
+        age:0,life:smokeMinLife+rnd()*Math.max(.05,smokeMaxLife-smokeMinLife),
+        size:smokeMinSize+rnd()*Math.max(.05,smokeMaxSize-smokeMinSize),
+        seed:rnd()*1000,kind:"blastSmoke"
+      });
+    }
+  }
+  return rt;
+}
+function updateTransient(dt,time){
+  const toDelete=[];
+  const wind=activeWind();
+  for(const layer of scene.layers){
+    if(layer.type!=="explosion"&&layer.type!=="magic")continue;
+    const rt=initTransient(layer);
+    rt.elapsed+=dt;
+    for(let i=rt.particles.length-1;i>=0;i--){
+      const q=rt.particles[i];q.age+=dt;
+      if(q.age>=q.life){rt.particles.splice(i,1);continue;}
+      const oldX=q.x,oldY=q.y;
+      if(q.kind==="blastSmoke"){
+        q.vx+=wind.x*.18*dt;q.vy+=wind.y*.18*dt;
+        q.vx*=Math.pow(.975,dt*60);q.vy*=Math.pow(.975,dt*60);
+        q.size+=(layer.props.smokeGrowth??22)*dt;
+      }else{
+        q.vx*=Math.pow(layer.type==="magic"?.989:.972,dt*60);
+        q.vy*=Math.pow(layer.type==="magic"?.989:.972,dt*60);
+        if(layer.type==="explosion")q.vy+=38*dt;
+      }
+      q.x+=q.vx*dt;q.y+=q.vy*dt;
+      if(layer.type==="explosion")collideParticle(q,oldX,oldY);
+    }
+    if(!IS_PLAYER && transientAge(layer)>(layer.props.duration??2.3)+.25)toDelete.push(layer.id);
+  }
+  if(!IS_PLAYER&&toDelete.length){
+    for(const id of toDelete){
+      const idx=scene.layers.findIndex(l=>l.id===id);
+      const removed=idx>=0?scene.layers[idx]:null;
+      if(idx>=0)scene.layers.splice(idx,1);
+      runtimes.delete(id);
+      if(removed?.__scenarioRuntime)scenarioRuntime.active.delete(removed.__scenarioRuntime);
+      if(selectedId===id)selectedId=null;
+    }
+    renderLayersUI();renderInspector();sendState(true);
+  }
+}
+
+/* =========================================================
+   DRAWING
+   ========================================================= */
+function drawBackground(){
+  gl.useProgram(bgProgram);
+  gl.bindBuffer(gl.ARRAY_BUFFER,quadBuffer);
+  const pos=gl.getAttribLocation(bgProgram,"aPosition");
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
+
+  sendWorldUniforms(bgProgram);
+  gl.uniform1f(gl.getUniformLocation(bgProgram,"uAmbient"),scene.settings.ambient??.34);
+  gl.uniform1i(gl.getUniformLocation(bgProgram,"uGridEnabled"),scene.settings.gridEnabled?1:0);
+  gl.uniform1f(gl.getUniformLocation(bgProgram,"uGridSize"),scene.settings.gridSize??64);
+  gl.uniform1f(gl.getUniformLocation(bgProgram,"uGridOpacity"),scene.settings.gridOpacity??.12);
+  gl.uniform1i(gl.getUniformLocation(bgProgram,"uHasBackground"),scene.settings.backgroundImage?1:0);
+  const fitMap={stretch:0,contain:1,cover:2};
+  gl.uniform1i(gl.getUniformLocation(bgProgram,"uBackgroundFit"),fitMap[scene.settings.backgroundFit]??0);
+  gl.uniform2f(gl.getUniformLocation(bgProgram,"uBackgroundAspect"),bgImageSize.w,bgImageSize.h);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D,bgTexture);
+  gl.uniform1i(gl.getUniformLocation(bgProgram,"uBackground"),0);
+
+  gl.drawArrays(gl.TRIANGLES,0,6);
+}
+
+function drawSmoke(){
+  if(!fxGlobalEnabled())return;
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(smokeProgram);
+  sendWorldUniforms(smokeProgram);
+
+  const stride=16;
+  const aPos=gl.getAttribLocation(smokeProgram,"aPosition");
+  const aSize=gl.getAttribLocation(smokeProgram,"aSize");
+  const aAlpha=gl.getAttribLocation(smokeProgram,"aAlpha");
+
+  for(const layer of scene.layers){
+    if(layer.type!=="smoke"||!viewVisible(layer))continue;
+    const rt=ensureRuntime(layer);
+    if(!rt.particles.length)continue;
+
+    const data=new Float32Array(rt.particles.length*4);
+    const sp=layer.props;
+    for(let i=0;i<rt.particles.length;i++){
+      const p=rt.particles[i],life=p.age/p.life;
+      const fadeIn=Math.min(life/.15,1),fadeOut=Math.min((1-life)/.3,1);
+      data[i*4]=p.x;data[i*4+1]=p.y;data[i*4+2]=p.size;
+      data[i*4+3]=(sp.opacity??.2)*colorAlpha(sp,"color")*fadeIn*fadeOut;
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER,smokeBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,stride,0);
+    gl.enableVertexAttribArray(aSize);gl.vertexAttribPointer(aSize,1,gl.FLOAT,false,stride,8);
+    gl.enableVertexAttribArray(aAlpha);gl.vertexAttribPointer(aAlpha,1,gl.FLOAT,false,stride,12);
+
+    const c=cssToRgb01(sp.color||"#c6c7c5");
+    gl.uniform3f(gl.getUniformLocation(smokeProgram,"uSmokeColor"),c[0],c[1],c[2]);
+    gl.drawArrays(gl.POINTS,0,rt.particles.length);
+  }
+  gl.disable(gl.BLEND);
+}
+
+function drawFxParticleBatch(items,colorFn,alphaFn,sizeFn){
+  if(!items.length)return;
+  const stride=28;
+  const data=new Float32Array(items.length*7);
+  for(let i=0;i<items.length;i++){
+    const q=items[i], c=colorFn(q), a=alphaFn(q);
+    data[i*7]=q.x;data[i*7+1]=q.y;data[i*7+2]=sizeFn(q);data[i*7+3]=a;
+    data[i*7+4]=c[0];data[i*7+5]=c[1];data[i*7+6]=c[2];
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER,fxBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
+  gl.useProgram(fxProgram);
+  gl.uniform2f(gl.getUniformLocation(fxProgram,"uResolution"),glCanvas.width,glCanvas.height);
+  const cc=camera();gl.uniform2f(gl.getUniformLocation(fxProgram,"uCameraCenter"),cc.x,cc.y);
+  gl.uniform1f(gl.getUniformLocation(fxProgram,"uViewScale"),viewScale());
+  const aPos=gl.getAttribLocation(fxProgram,"aPosition");
+  const aSize=gl.getAttribLocation(fxProgram,"aSize");
+  const aAlpha=gl.getAttribLocation(fxProgram,"aAlpha");
+  const aColor=gl.getAttribLocation(fxProgram,"aColor");
+  gl.enableVertexAttribArray(aPos);gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,stride,0);
+  gl.enableVertexAttribArray(aSize);gl.vertexAttribPointer(aSize,1,gl.FLOAT,false,stride,8);
+  gl.enableVertexAttribArray(aAlpha);gl.vertexAttribPointer(aAlpha,1,gl.FLOAT,false,stride,12);
+  gl.enableVertexAttribArray(aColor);gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,stride,16);
+  gl.drawArrays(gl.POINTS,0,items.length);
+}
+function drawFire(){
+  if(!fxGlobalEnabled())return;
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  for(const layer of scene.layers){
+    if(layer.type!=="fire"||!viewVisible(layer))continue;
+    const rt=ensureRuntime(layer);if(!rt.particles.length)continue;
+    const cHot=cssToRgb01(layer.props.hotColor||"#ffe08a");
+    const cCool=cssToRgb01(layer.props.coolColor||"#ff4b16");
+    drawFxParticleBatch(rt.particles,q=>{
+      const t=Math.min(1,q.age/q.life);
+      return [
+        cHot[0]*(1-t)+cCool[0]*t,
+        cHot[1]*(1-t)+cCool[1]*t,
+        cHot[2]*(1-t)+cCool[2]*t
+      ];
+    },q=>{
+      const t=q.age/q.life;
+      const aa=colorAlpha(layer.props,"hotColor")*(1-t)+colorAlpha(layer.props,"coolColor")*t;
+      return (layer.props.opacity??.72)*aa*(1-t)*Math.min(1,t/.08);
+    },q=>q.size*(1-.35*(q.age/q.life)));
+  }
+  gl.disable(gl.BLEND);
+}
+function drawRain(){
+  // Top-down rain is drawn by drawOverlay().
+}
+function drawTransient(){
+  if(!fxGlobalEnabled())return;
+
+  // Dense blast smoke uses normal alpha blending.
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  for(const layer of scene.layers){
+    if(layer.type!=="explosion"||!viewVisible(layer))continue;
+    const rt=initTransient(layer);
+    const smoke=rt.particles.filter(q=>q.kind==="blastSmoke");
+    const sc=cssToRgb01(layer.props.smokeColor||"#45413f");
+    drawFxParticleBatch(smoke,q=>sc,q=>{
+      const t=q.age/q.life;
+      return (layer.props.smokeOpacity??.32)*colorAlpha(layer.props,"smokeColor")*(1-t);
+    },q=>q.size);
+  }
+
+  // Sparks / magical energy are emissive, so additive blending looks better.
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+  for(const layer of scene.layers){
+    if((layer.type!=="explosion"&&layer.type!=="magic")||!viewVisible(layer))continue;
+    const rt=initTransient(layer);
+    const sparks=rt.particles.filter(q=>q.kind!=="blastSmoke");
+    const base=cssToRgb01(layer.props.color||(layer.type==="magic"?"#7c72ff":"#ff7a28"));
+    const hot=cssToRgb01(layer.props.hotColor||(layer.type==="magic"?"#d8d4ff":"#fff0a0"));
+    drawFxParticleBatch(sparks,q=>{
+      const t=Math.min(1,q.age/q.life);
+      return [hot[0]*(1-t)+base[0]*t,hot[1]*(1-t)+base[1]*t,hot[2]*(1-t)+base[2]*t];
+    },q=>{
+      const t=q.age/q.life;
+      const aa=colorAlpha(layer.props,"hotColor")*(1-t)+colorAlpha(layer.props,"color")*t;
+      return (layer.props.opacity??.9)*aa*(1-t);
+    },q=>q.size*(1+.25*(q.age/q.life)));
+  }
+  gl.disable(gl.BLEND);
+}
+
+function drawWalls(){
+  const ws=scene.layers.filter(l=>l.type==="wall"&&viewVisible(l));
+  if(!ws.length)return;
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(lineProgram);
+  gl.uniform2f(gl.getUniformLocation(lineProgram,"uResolution"),glCanvas.width,glCanvas.height);
+  const cc=camera();gl.uniform2f(gl.getUniformLocation(lineProgram,"uCameraCenter"),cc.x,cc.y);
+  gl.uniform1f(gl.getUniformLocation(lineProgram,"uViewScale"),viewScale());
+
+  for(const w of ws){
+    const x1=w.props.x1, y1=w.props.y1;
+    const x2=w.props.x2, y2=w.props.y2;
+    const dx=x2-x1, dy=y2-y1;
+    const len=Math.hypot(dx,dy)||1;
+    const half=Math.max(1,Number(w.props.thickness??4))/2;
+    const nx=-dy/len*half, ny=dx/len*half;
+
+    const d=new Float32Array([
+      x1+nx,y1+ny, x1-nx,y1-ny, x2+nx,y2+ny,
+      x2+nx,y2+ny, x1-nx,y1-ny, x2-nx,y2-ny
+    ]);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER,lineBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER,d,gl.DYNAMIC_DRAW);
+    const pos=gl.getAttribLocation(lineProgram,"aPosition");
+    gl.enableVertexAttribArray(pos);
+    gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
+
+    const c=cssToRgb01(w.props.color||"#b8bcc2");
+    gl.uniform4f(gl.getUniformLocation(lineProgram,"uColor"),c[0],c[1],c[2],colorAlpha(w.props,"color"));
+    gl.drawArrays(gl.TRIANGLES,0,6);
+  }
+  gl.disable(gl.BLEND);
+}
+
+
+function drawOverlay(){
+  overlayCtx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
+  overlayCtx.lineCap="round";
+  overlayCtx.lineJoin="round";
+
+  // Cinematic top-down rain: impact points and expanding ripples.
+  if(fxGlobalEnabled()){
+    for(const layer of scene.layers){
+      if(layer.type!=="rain"||!viewVisible(layer))continue;
+      const rt=ensureRain(layer),rp=layer.props;
+      for(const d of rt.particles){
+        const t=Math.max(0,Math.min(1,d.age/d.life));
+        const q=worldToScreen(d.x,d.y);
+        const radius=worldRadiusToScreen((rp.minRadius??1.2)+(d.size*(.18+t)));
+        if(q.x<-radius||q.y<-radius||q.x>overlayCanvas.width+radius||q.y>overlayCanvas.height+radius)continue;
+
+        const a=(rp.opacity??.42)*colorAlpha(rp,"color")*(1-t);
+        overlayCtx.beginPath();
+        overlayCtx.fillStyle=rgbaCss(rp.color||"#a9c9e8",a*.55);
+        overlayCtx.arc(q.x,q.y,Math.max(1,radius*.16),0,Math.PI*2);
+        overlayCtx.fill();
+
+        overlayCtx.beginPath();
+        overlayCtx.strokeStyle=rgbaCss(rp.color||"#a9c9e8",a);
+        overlayCtx.lineWidth=Math.max(1,worldRadiusToScreen(rp.ringWidth??.9));
+        overlayCtx.arc(q.x,q.y,Math.max(1.5,radius),0,Math.PI*2);
+        overlayCtx.stroke();
+
+        if((rp.doubleRing??true)&&t>.18){
+          overlayCtx.beginPath();
+          overlayCtx.strokeStyle=rgbaCss(rp.color||"#a9c9e8",a*.48);
+          overlayCtx.lineWidth=Math.max(1,worldRadiusToScreen((rp.ringWidth??.9)*.7));
+          overlayCtx.arc(q.x,q.y,Math.max(1.2,radius*.55),0,Math.PI*2);
+          overlayCtx.stroke();
+        }
+      }
+    }
+  }
+
+  // Vector annotations / map drawings.
+  for(const layer of scene.layers){
+    if(!viewVisible(layer))continue;
+    const p=layer.props||{};
+    overlayCtx.save();
+
+    if(layer.type==="rect"){
+      const a=worldToScreen(p.x1,p.y1),b=worldToScreen(p.x2,p.y2);
+      const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(b.x-a.x),h=Math.abs(b.y-a.y);
+      overlayCtx.setLineDash(p.dashed?[10,8]:[]);
+      if(p.filled){
+        overlayCtx.fillStyle=rgbaCss(p.fillColor||"#5ba7ff",(p.fillOpacity??.16)*colorAlpha(p,"fillColor"));
+        overlayCtx.fillRect(x,y,w,h);
+      }
+      overlayCtx.lineWidth=Math.max(1,(p.lineWidth??4)*viewScale()*.15);
+      overlayCtx.strokeStyle=rgbaCss(p.strokeColor||"#ffffff",colorAlpha(p,"strokeColor"));
+      overlayCtx.strokeRect(x,y,w,h);
+    }else if(layer.type==="circle"){
+      const q=worldToScreen(p.x,p.y),r=worldRadiusToScreen(p.radius??80);
+      overlayCtx.setLineDash(p.dashed?[10,8]:[]);
+      overlayCtx.beginPath();overlayCtx.arc(q.x,q.y,Math.max(1,r),0,Math.PI*2);
+      if(p.filled){
+        overlayCtx.fillStyle=rgbaCss(p.fillColor||"#5ba7ff",(p.fillOpacity??.16)*colorAlpha(p,"fillColor"));
+        overlayCtx.fill();
+      }
+      overlayCtx.lineWidth=Math.max(1,(p.lineWidth??4)*viewScale()*.15);
+      overlayCtx.strokeStyle=rgbaCss(p.strokeColor||"#ffffff",colorAlpha(p,"strokeColor"));
+      overlayCtx.stroke();
+    }else if(layer.type==="shapeLine"){
+      const a=worldToScreen(p.x1,p.y1),b=worldToScreen(p.x2,p.y2);
+      overlayCtx.setLineDash(p.dashed?[10,8]:[]);
+      overlayCtx.beginPath();overlayCtx.moveTo(a.x,a.y);overlayCtx.lineTo(b.x,b.y);
+      overlayCtx.lineWidth=Math.max(1,(p.lineWidth??4)*viewScale()*.15);
+      overlayCtx.strokeStyle=rgbaCss(p.strokeColor||"#ffffff",colorAlpha(p,"strokeColor"));
+      overlayCtx.stroke();
+    }else if(layer.type==="polygon"){
+      const pts=(p.points||[]).map(pt=>worldToScreen(pt.x,pt.y));
+      if(pts.length>=2){
+        overlayCtx.setLineDash(p.dashed?[10,8]:[]);
+        overlayCtx.beginPath();overlayCtx.moveTo(pts[0].x,pts[0].y);
+        for(let i=1;i<pts.length;i++)overlayCtx.lineTo(pts[i].x,pts[i].y);
+        if(p.closed!==false)overlayCtx.closePath();
+        if(p.filled&&pts.length>=3){
+          overlayCtx.fillStyle=rgbaCss(p.fillColor||"#5ba7ff",(p.fillOpacity??.16)*colorAlpha(p,"fillColor"));
+          overlayCtx.fill();
+        }
+        overlayCtx.lineWidth=Math.max(1,(p.lineWidth??4)*viewScale()*.15);
+        overlayCtx.strokeStyle=rgbaCss(p.strokeColor||"#ffffff",colorAlpha(p,"strokeColor"));
+        overlayCtx.stroke();
+      }
+    }else if(layer.type==="text"){
+      const q=worldToScreen(p.x,p.y);
+      const fs=Math.max(8,(p.fontSize??42)*viewScale()*.18);
+      overlayCtx.font=`${p.bold?"bold ":""}${p.italic?"italic ":""}${fs}px ${p.fontFamily||"Arial"}`;
+      overlayCtx.textAlign="center";
+      overlayCtx.textBaseline="middle";
+      if((p.lineWidth??0)>0&&colorAlpha(p,"strokeColor")>0){
+        overlayCtx.lineWidth=Math.max(1,(p.lineWidth??2)*viewScale()*.12);
+        overlayCtx.strokeStyle=rgbaCss(p.strokeColor||"#000000",colorAlpha(p,"strokeColor"));
+        overlayCtx.strokeText(p.text||"Text",q.x,q.y);
+      }
+      overlayCtx.fillStyle=rgbaCss(p.fillColor||"#ffffff",colorAlpha(p,"fillColor"));
+      overlayCtx.fillText(p.text||"Text",q.x,q.y);
+    }
+    overlayCtx.restore();
+  }
+}
+
+function drawMasterSelection(){
+  selCtx.clearRect(0,0,selCanvas.width,selCanvas.height);
+  if(IS_PLAYER)return;
+
+  const scClip=scenarioSelectedClip();
+  if(scClip?.template?.props && Number.isFinite(scClip.template.props.x) && Number.isFinite(scClip.template.props.y)){
+    const l=scClip.template;
+    const q=worldToScreen(l.props.x,l.props.y);
+    selCtx.save();
+    selCtx.strokeStyle="#ffb85b";
+    selCtx.fillStyle="rgba(255,184,91,.18)";
+    selCtx.lineWidth=2;
+    selCtx.setLineDash([7,5]);
+    let rr=18;
+    if(l.type==="light")rr=worldRadiusToScreen(l.props.radius??100);
+    else if(l.type==="smoke"||l.type==="fire")rr=worldRadiusToScreen(l.props.spread??20);
+    else if(l.type==="explosion"||l.type==="magic")rr=worldRadiusToScreen((l.props.lightRadius??300)*.35);
+    selCtx.beginPath();selCtx.arc(q.x,q.y,Math.max(12,rr),0,Math.PI*2);selCtx.stroke();
+    selCtx.setLineDash([]);
+    selCtx.beginPath();selCtx.arc(q.x,q.y,6,0,Math.PI*2);selCtx.fill();
+    selCtx.restore();
+  }
+
+  if(selectedId){
+    const l=layerById(selectedId);
+    if(l){
+      selCtx.save();
+      selCtx.strokeStyle="#58b3ff";
+      selCtx.fillStyle="rgba(88,179,255,.18)";
+      selCtx.lineWidth=2;
+      selCtx.setLineDash([6,5]);
+
+      if(l.type==="wall"){
+        const a=worldToScreen(l.props.x1,l.props.y1),b=worldToScreen(l.props.x2,l.props.y2);
+        const x1=a.x,y1=a.y,x2=b.x,y2=b.y;
+        selCtx.beginPath();selCtx.moveTo(x1,y1);selCtx.lineTo(x2,y2);selCtx.stroke();
+        for(const [x,y] of [[x1,y1],[x2,y2]]){
+          selCtx.setLineDash([]);selCtx.fillStyle="#58b3ff";
+          selCtx.beginPath();selCtx.arc(x,y,6,0,Math.PI*2);selCtx.fill();
+        }
+      }else if(l.type==="light"){
+        const q=worldToScreen(l.props.x,l.props.y),x=q.x,y=q.y,r=worldRadiusToScreen(l.props.radius);
+        selCtx.beginPath();selCtx.arc(x,y,r,0,Math.PI*2);selCtx.stroke();
+        selCtx.setLineDash([]);
+        selCtx.beginPath();selCtx.arc(x,y,7,0,Math.PI*2);selCtx.fill();
+        selCtx.beginPath();selCtx.arc(x+r,y,5,0,Math.PI*2);selCtx.fill();
+      }else if(l.type==="smoke"||l.type==="fire"||l.type==="explosion"||l.type==="magic"){
+        const q=worldToScreen(l.props.x,l.props.y),x=q.x,y=q.y;
+        const rr=l.type==="smoke"?(l.props.spread??13):(l.type==="fire"?(l.props.spread??15):((l.props.lightRadius??40)*0.35));
+        const r=worldRadiusToScreen(rr);
+        selCtx.beginPath();selCtx.arc(x,y,Math.max(r,12),0,Math.PI*2);selCtx.stroke();
+        selCtx.setLineDash([]);
+        selCtx.beginPath();selCtx.arc(x,y,6,0,Math.PI*2);selCtx.fill();
+        if(l.type==="smoke"||l.type==="fire"){selCtx.beginPath();selCtx.arc(x+r,y,5,0,Math.PI*2);selCtx.fill();}
+      }else if(l.type==="rect"){
+        const a=worldToScreen(l.props.x1,l.props.y1),b=worldToScreen(l.props.x2,l.props.y2);
+        const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y),w=Math.abs(b.x-a.x),h=Math.abs(b.y-a.y);
+        selCtx.strokeRect(x,y,w,h);
+        selCtx.setLineDash([]);
+        for(const [hx,hy] of [[x,y],[x+w,y],[x,y+h],[x+w,y+h]]){selCtx.beginPath();selCtx.arc(hx,hy,4,0,Math.PI*2);selCtx.fill();}
+      }else if(l.type==="circle"){
+        const q=worldToScreen(l.props.x,l.props.y),r=worldRadiusToScreen(l.props.radius??80);
+        selCtx.beginPath();selCtx.arc(q.x,q.y,Math.max(8,r),0,Math.PI*2);selCtx.stroke();
+        selCtx.setLineDash([]);
+        selCtx.beginPath();selCtx.arc(q.x,q.y,5,0,Math.PI*2);selCtx.fill();
+        selCtx.beginPath();selCtx.arc(q.x+r,q.y,5,0,Math.PI*2);selCtx.fill();
+      }else if(l.type==="shapeLine"){
+        const a=worldToScreen(l.props.x1,l.props.y1),b=worldToScreen(l.props.x2,l.props.y2);
+        selCtx.beginPath();selCtx.moveTo(a.x,a.y);selCtx.lineTo(b.x,b.y);selCtx.stroke();
+        selCtx.setLineDash([]);
+        selCtx.beginPath();selCtx.arc(a.x,a.y,5,0,Math.PI*2);selCtx.fill();
+        selCtx.beginPath();selCtx.arc(b.x,b.y,5,0,Math.PI*2);selCtx.fill();
+      }else if(l.type==="polygon"){
+        const pts=(l.props.points||[]).map(pt=>worldToScreen(pt.x,pt.y));
+        if(pts.length){
+          selCtx.beginPath();selCtx.moveTo(pts[0].x,pts[0].y);
+          for(let i=1;i<pts.length;i++)selCtx.lineTo(pts[i].x,pts[i].y);
+          selCtx.closePath();selCtx.stroke();
+          selCtx.setLineDash([]);
+          for(const pt of pts){selCtx.beginPath();selCtx.arc(pt.x,pt.y,4,0,Math.PI*2);selCtx.fill();}
+        }
+      }else if(l.type==="text"){
+        const q=worldToScreen(l.props.x,l.props.y);
+        selCtx.beginPath();selCtx.arc(q.x,q.y,8,0,Math.PI*2);selCtx.stroke();
+      }else if(l.type==="wind"){
+        const x=80,y=80,scale=2;
+        selCtx.setLineDash([]);selCtx.beginPath();selCtx.moveTo(x,y);selCtx.lineTo(x+l.props.x*scale,y+l.props.y*scale);selCtx.stroke();
+      }
+      selCtx.restore();
+    }
+  }
+  drawPlacementPreview();
+}
+
+function drawPlacementPreview(){
+  if(IS_PLAYER||!hoverScreenPos)return;
+  selCtx.save();
+  selCtx.lineWidth=1.5;
+  selCtx.setLineDash([6,4]);
+  selCtx.strokeStyle="rgba(255,255,255,.82)";
+  selCtx.fillStyle="rgba(255,255,255,.10)";
+
+  if(tool==="fogReveal"||tool==="fogHide"){
+    const r=Number(document.getElementById("fogBrush").value||80);
+    selCtx.beginPath();selCtx.arc(hoverScreenPos.x,hoverScreenPos.y,r,0,Math.PI*2);selCtx.stroke();
+    selCtx.restore();return;
+  }
+
+  if(["wall","rect","circle","shapeLine"].includes(tool)){
+    const hx=hoverScreenPos.x,hy=hoverScreenPos.y;
+    if(dragStart){
+      const a=worldToScreen(dragStart.x,dragStart.y);
+      if(tool==="rect"){
+        selCtx.strokeRect(Math.min(a.x,hx),Math.min(a.y,hy),Math.abs(hx-a.x),Math.abs(hy-a.y));
+      }else if(tool==="circle"){
+        selCtx.beginPath();selCtx.arc(a.x,a.y,Math.hypot(hx-a.x,hy-a.y),0,Math.PI*2);selCtx.stroke();
+      }else{
+        selCtx.beginPath();selCtx.moveTo(a.x,a.y);selCtx.lineTo(hx,hy);selCtx.stroke();
+      }
+      selCtx.beginPath();selCtx.arc(a.x,a.y,5,0,Math.PI*2);selCtx.fill();
+      selCtx.beginPath();selCtx.arc(hx,hy,5,0,Math.PI*2);selCtx.fill();
+    }else{
+      selCtx.beginPath();selCtx.arc(hx,hy,7,0,Math.PI*2);selCtx.stroke();
+    }
+    selCtx.restore();return;
+  }
+
+  if(tool==="polygon"){
+    const pts=polygonDraftPoints.map(pt=>worldToScreen(pt.x,pt.y));
+    if(pts.length){
+      selCtx.beginPath();selCtx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++)selCtx.lineTo(pts[i].x,pts[i].y);
+      selCtx.lineTo(hoverScreenPos.x,hoverScreenPos.y);selCtx.stroke();
+      selCtx.setLineDash([]);
+      for(const pt of pts){selCtx.beginPath();selCtx.arc(pt.x,pt.y,4,0,Math.PI*2);selCtx.fill();}
+    }
+    selCtx.beginPath();selCtx.arc(hoverScreenPos.x,hoverScreenPos.y,5,0,Math.PI*2);selCtx.stroke();
+    selCtx.restore();return;
+  }
+
+  if(placementDraft&&hoverWorldPos){
+    const t=placementDraft.type,p=placementDraft.props||{};
+    const hx=hoverScreenPos.x,hy=hoverScreenPos.y;
+    if(t==="smoke"||t==="fire"){
+      const rr=worldRadiusToScreen(p.spread??(t==="fire"?15:13));
+      selCtx.beginPath();selCtx.arc(hx,hy,Math.max(rr,10),0,Math.PI*2);selCtx.stroke();
+    }else if(t==="light"){
+      const rr=worldRadiusToScreen(p.radius??345);
+      selCtx.beginPath();selCtx.arc(hx,hy,Math.max(rr,10),0,Math.PI*2);selCtx.stroke();
+    }else if(t==="explosion"||t==="magic"){
+      const rr=worldRadiusToScreen((p.lightRadius??300)*.35);
+      selCtx.beginPath();selCtx.arc(hx,hy,Math.max(rr,10),0,Math.PI*2);selCtx.stroke();
+    }else if(t==="text"){
+      selCtx.font="20px Arial";
+      selCtx.setLineDash([]);
+      selCtx.fillText(p.text||"Text",hx,hy);
+    }
+    selCtx.beginPath();selCtx.arc(hx,hy,5,0,Math.PI*2);selCtx.fill();
+  }
+  selCtx.restore();
+}
+
+/* =========================================================
+   RESIZE
+   ========================================================= */
+function resize(){
+  const w=stage.clientWidth,h=stage.clientHeight;
+  for(const c of [glCanvas,overlayCanvas,fogCanvas,selCanvas]){
+    c.width=w;c.height=h;
+  }
+  gl.viewport(0,0,w,h);
+  rebuildFog();
+}
+window.addEventListener("resize",resize);
+resetLocalCamera();
+resize();
+
+/* =========================================================
+   TOOL CREATION / PICKING
+   ========================================================= */
+let dragStart=null;
+let fogPainting=false;
+let lastFogPoint=null;
+
+function addLayer(layer){
+  scene.layers.push(layer);
+  selectedId=layer.id;
+  renderLayersUI();
+  renderInspector();
+  sendState(true);
+}
+
+function makePlacementDraft(type){
+  const c=camera();
+  const base={id:"draft_"+type,type,name:type[0].toUpperCase()+type.slice(1),showMaster:true,showPlayer:true,props:{}};
+  if(type==="wall")base.props={color:"#b8bcc2",colorAlpha:1,thickness:5,blocksLight:true,blocksSmoke:true};
+  if(type==="smoke")base.props={x:c.x,y:c.y,emissionRate:35,minLife:5,maxLife:9,minSize:40,maxSize:90,growth:8,turbulence:16,drift:12,opacity:.20,spread:13,color:"#c6c7c5",colorAlpha:1};
+  if(type==="light")base.props={x:c.x,y:c.y,radius:345,intensity:1.7,color:"#ffd28a",colorAlpha:1};
+  if(type==="fire")base.props={x:c.x,y:c.y,seed:1,emissionRate:90,minSize:16,maxSize:34,spread:15,opacity:.72,hotColor:"#ffe08a",hotColorAlpha:1,coolColor:"#ff4b16",coolColorAlpha:1,windInfluence:.35,castLight:true,lightRadius:173,lightIntensity:1.35,lightColor:"#ff9a45",lightColorAlpha:1};
+  if(type==="explosion"){base.temporary=true;base.props={x:c.x,y:c.y,startTime:0,seed:1,duration:2.3,particles:180,opacity:.95,color:"#ff641f",colorAlpha:1,hotColor:"#fff0a0",hotColorAlpha:1,flashDuration:.5,lightRadius:410,lightIntensity:3.2,lightColor:"#ff9c45",lightColorAlpha:1,smokeParticles:50,smokeSpread:24,smokeMinSize:24,smokeMaxSize:70,smokeGrowth:22,smokeMinLife:1.5,smokeMaxLife:4.2,smokeOpacity:.32,smokeColor:"#45413f",smokeColorAlpha:1};}
+  if(type==="magic"){base.temporary=true;base.name="Magic Burst";base.props={x:c.x,y:c.y,startTime:0,seed:1,duration:2.8,particles:140,opacity:.88,color:"#736cff",colorAlpha:1,hotColor:"#e2dfff",hotColorAlpha:1,flashDuration:.7,lightRadius:302,lightIntensity:2.1,lightColor:"#817bff",lightColorAlpha:1};}
+  if(type==="text"){base.name="Text";base.props={x:c.x,y:c.y,text:"Text",fontSize:42,fontFamily:"Arial",bold:false,italic:false,fillColor:"#ffffff",fillColorAlpha:1,strokeColor:"#000000",strokeColorAlpha:.65,lineWidth:2};}
+  if(type==="rect"){base.name="Rectangle";base.props={x1:c.x-80,y1:c.y-50,x2:c.x+80,y2:c.y+50,lineWidth:4,dashed:false,filled:true,strokeColor:"#ffffff",strokeColorAlpha:1,fillColor:"#5ba7ff",fillColorAlpha:1,fillOpacity:.16};}
+  if(type==="circle"){base.name="Circle";base.props={x:c.x,y:c.y,radius:80,lineWidth:4,dashed:false,filled:true,strokeColor:"#ffffff",strokeColorAlpha:1,fillColor:"#5ba7ff",fillColorAlpha:1,fillOpacity:.16};}
+  if(type==="shapeLine"){base.name="Line";base.props={x1:c.x-70,y1:c.y,x2:c.x+70,y2:c.y,lineWidth:4,dashed:false,strokeColor:"#ffffff",strokeColorAlpha:1};}
+  if(type==="polygon"){base.name="Polygon";base.props={points:[],lineWidth:4,dashed:false,filled:true,closed:true,strokeColor:"#ffffff",strokeColorAlpha:1,fillColor:"#5ba7ff",fillColorAlpha:1,fillOpacity:.16};}
+  return base;
+}
+
+function makeScenarioTemplate(type){
+  if(type==="rain"){
+    return {
+      id:uid("scenario_template_rain"),
+      type:"rain",
+      name:"Rain",
+      showMaster:true,
+      showPlayer:true,
+      props:{
+        density:280,speedFactor:1,minLife:.35,maxLife:1.05,
+        minRadius:1.2,maxRadius:10,ringWidth:.9,doubleRing:true,
+        opacity:.42,color:"#a9c9e8",colorAlpha:1
+      }
+    };
+  }
+  const draft=makePlacementDraft(type);
+  if(!draft)return null;
+  const t=JSON.parse(JSON.stringify(draft));
+  t.id=uid("scenario_template_"+type);
+  if(t.props?.startTime)t.props.startTime=0;
+  return t;
+}
+function cloneLayerAsScenarioTemplate(layer){
+  const t=JSON.parse(JSON.stringify(layer));
+  t.id=uid("scenario_template_"+t.type);
+  delete t.__scenarioRuntime;
+  if(t.props?.startTime)t.props.startTime=0;
+  return t;
+}
+function defaultScenarioClipDuration(template){
+  if(template?.type==="explosion"||template?.type==="magic")
+    return Math.max(.1,Number(template.props?.duration)||2);
+  return 5;
+}
+function createScenarioClip(template,start=scenarioRuntime.time,duration=null){
+  if(!template)return null;
+  const clip={
+    id:uid("clip"),
+    name:template.name||template.type||"Effect",
+    start:Math.max(0,Number(start)||0),
+    duration:Math.max(.1,Number(duration??defaultScenarioClipDuration(template))||1),
+    template:JSON.parse(JSON.stringify(template))
+  };
+  clip.template.id=uid("scenario_template_"+clip.template.type);
+  scenario.clips.push(clip);
+  scenario.duration=Math.max(scenario.duration,clip.start+clip.duration);
+  selectedId=null;
+  placementDraft=null;
+  scenarioSelectedClipId=clip.id;
+  renderScenarioEditor();
+  renderInspector();
+  openInspector();
+  return clip;
+}
+
+function cloneDraftForPlacement(){
+  const copy=JSON.parse(JSON.stringify(placementDraft));
+  copy.id=uid(copy.type);
+  if(copy.temporary){copy.props.startTime=Date.now();copy.props.seed=Math.floor(Math.random()*1e9);}
+  if(copy.type==="fire")copy.props.seed=Math.floor(Math.random()*1e9);
+  return copy;
+}
+function registerPlacedLayer(copy){
+  scene.layers.push(copy);
+  renderLayersUI();
+  sendState(true);
+  if(copy.type==="explosion")playOneShotSound("explosion");
+  if(copy.type==="magic")playOneShotSound("magic");
+}
+function placeDraftPoint(p){
+  if(!placementDraft)return;
+  const copy=cloneDraftForPlacement();
+  copy.props.x=p.x;copy.props.y=p.y;
+  registerPlacedLayer(copy);
+}
+function placeDraftWall(a,b){
+  if(!placementDraft)return;
+  const copy=cloneDraftForPlacement();
+  Object.assign(copy.props,{x1:a.x,y1:a.y,x2:b.x,y2:b.y});
+  registerPlacedLayer(copy);
+}
+function placeDraftRect(a,b){
+  if(!placementDraft)return;
+  const copy=cloneDraftForPlacement();
+  Object.assign(copy.props,{x1:a.x,y1:a.y,x2:b.x,y2:b.y});
+  registerPlacedLayer(copy);
+}
+function placeDraftCircle(a,b){
+  if(!placementDraft)return;
+  const copy=cloneDraftForPlacement();
+  copy.props.x=a.x;copy.props.y=a.y;copy.props.radius=Math.max(1,Math.hypot(b.x-a.x,b.y-a.y));
+  registerPlacedLayer(copy);
+}
+function placeDraftShapeLine(a,b){
+  if(!placementDraft)return;
+  const copy=cloneDraftForPlacement();
+  Object.assign(copy.props,{x1:a.x,y1:a.y,x2:b.x,y2:b.y});
+  registerPlacedLayer(copy);
+}
+function finishPolygonPlacement(){
+  if(!placementDraft||tool!=="polygon"||polygonDraftPoints.length<3)return;
+  const copy=cloneDraftForPlacement();
+  copy.props.points=polygonDraftPoints.map(p=>({x:p.x,y:p.y}));
+  polygonDraftPoints=[];
+  registerPlacedLayer(copy);
+}
+
+
+function removeScenarioRuntimeForClip(clipId,send=true){
+  const mapped=scenarioRuntime.active.get(clipId);
+  let changed=false;
+  if(mapped){
+    const idx=scene.layers.findIndex(l=>l.id===mapped);
+    if(idx>=0){
+      scene.layers.splice(idx,1);
+      runtimes.delete(mapped);
+      changed=true;
+    }
+    scenarioRuntime.active.delete(clipId);
+  }
+  // Defensive cleanup in case a stale mapping was lost.
+  for(let i=scene.layers.length-1;i>=0;i--){
+    if(scene.layers[i].__scenarioRuntime===clipId){
+      runtimes.delete(scene.layers[i].id);
+      scene.layers.splice(i,1);
+      changed=true;
+    }
+  }
+  if(changed&&send){
+    renderLayersUI();
+    sendState(true);
+  }
+  return changed;
+}
+function clearAllScenarioRuntime(send=true){
+  let changed=false;
+  for(let i=scene.layers.length-1;i>=0;i--){
+    if(scene.layers[i].__scenarioRuntime){
+      runtimes.delete(scene.layers[i].id);
+      scene.layers.splice(i,1);
+      changed=true;
+    }
+  }
+  scenarioRuntime.active.clear();
+  if(changed&&send){
+    renderLayersUI();
+    renderInspector();
+    sendState(true);
+  }
+}
+function spawnScenarioClip(clip,playAudio=false){
+  const template=clip.template;
+  if(!template)return null;
+
+  const layer=JSON.parse(JSON.stringify(template));
+  layer.id=uid("scenario_"+(layer.type||"effect"));
+  layer.__scenarioRuntime=clip.id;
+  layer.name=`${template.name||template.type} [scenario]`;
+
+  const elapsed=Math.max(0,scenarioRuntime.time-clip.start);
+  if(layer.type==="explosion"||layer.type==="magic"){
+    layer.temporary=true;
+    layer.props=layer.props||{};
+    layer.props.duration=Math.max(.1,clip.duration);
+    layer.props.startTime=Date.now()-elapsed*1000;
+    layer.props.seed=Math.floor(Math.random()*1e9);
+  }else{
+    layer.temporary=false;
+  }
+
+  scene.layers.push(layer);
+  scenarioRuntime.active.set(clip.id,layer.id);
+
+  if(playAudio){
+    if(layer.type==="explosion")playOneShotSound("explosion");
+    if(layer.type==="magic")playOneShotSound("magic");
+  }
+
+  return layer;
+}
+function syncScenarioToTime(playAudio=false,broadcast=true){
+  // Drop stale runtime ids first.
+  for(const [clipId,layerId] of [...scenarioRuntime.active.entries()]){
+    if(!scene.layers.some(l=>l.id===layerId))scenarioRuntime.active.delete(clipId);
+  }
+
+  let changed=false;
+  for(const clip of scenario.clips){
+    const start=Number(clip.start)||0;
+    const end=start+Math.max(.1,Number(clip.duration)||.1);
+    const active=scenarioRuntime.time>=start&&scenarioRuntime.time<end;
+    const exists=scenarioRuntime.active.has(clip.id);
+
+    if(active&&!exists){
+      spawnScenarioClip(clip,playAudio);
+      changed=true;
+    }else if(!active&&exists){
+      changed=removeScenarioRuntimeForClip(clip.id,false)||changed;
+    }
+  }
+
+  if(changed){
+    renderLayersUI();
+    if(broadcast)sendState(true);
+  }
+}
+function seekScenario(time,playAudio=false){
+  scenarioRuntime.time=Math.max(0,Math.min(Number(time)||0,scenario.duration));
+  clearAllScenarioRuntime(false);
+  syncScenarioToTime(playAudio,scenarioRuntime.live);
+  updateScenarioPlayhead();
+}
+function playScenario(){
+  if(scenarioRuntime.time>=scenario.duration-.0001){
+    scenarioRuntime.time=0;
+    clearAllScenarioRuntime(false);
+  }
+  scenarioRuntime.live=true;
+  scenarioRuntime.playing=true;
+  syncScenarioToTime(true,true);
+  sendState(true);
+  updateScenarioTransportUI();
+}
+function pauseScenario(){
+  scenarioRuntime.playing=false;
+  updateScenarioTransportUI();
+}
+function stopScenario(){
+  scenarioRuntime.playing=false;
+  scenarioRuntime.live=false;
+  scenarioRuntime.time=0;
+  clearAllScenarioRuntime(false);
+  sendState(true);
+  updateScenarioTransportUI();
+  updateScenarioPlayhead();
+}
+function updateScenarioPlayback(dt){
+  if(IS_PLAYER||!scenarioRuntime.playing)return;
+
+  const previous=scenarioRuntime.time;
+  scenarioRuntime.time+=dt;
+
+  if(scenarioRuntime.time>=scenario.duration){
+    if(scenario.loop){
+      clearAllScenarioRuntime(false);
+      scenarioRuntime.time=scenario.duration>0?(scenarioRuntime.time%scenario.duration):0;
+      syncScenarioToTime(true,true);
+    }else{
+      scenarioRuntime.time=scenario.duration;
+      syncScenarioToTime(false,true);
+      scenarioRuntime.playing=false;
+    }
+  }else{
+    // Audio should only be triggered for clips entered during forward playback.
+    const entered=scenario.clips.some(c=>{
+      const s=Number(c.start)||0;
+      return s>previous&&s<=scenarioRuntime.time;
+    });
+    syncScenarioToTime(entered,true);
+  }
+  updateScenarioPlayhead();
+  updateScenarioTransportUI();
+}
+function refreshSelectedScenarioClipRuntime(){
+  const clip=scenarioSelectedClip();
+  if(!clip)return;
+  const wasActive=scenarioRuntime.active.has(clip.id);
+  if(wasActive){
+    removeScenarioRuntimeForClip(clip.id,false);
+    syncScenarioToTime(false,scenarioRuntime.live);
+    if(scenarioRuntime.live)sendState(true);
+  }
+}
+
+function distanceToSegment(px,py,x1,y1,x2,y2){
+  const vx=x2-x1,vy=y2-y1,wx=px-x1,wy=py-y1;
+  const c1=vx*wx+vy*wy;
+  if(c1<=0)return Math.hypot(px-x1,py-y1);
+  const c2=vx*vx+vy*vy;
+  if(c2<=c1)return Math.hypot(px-x2,py-y2);
+  const t=c1/c2;
+  return Math.hypot(px-(x1+t*vx),py-(y1+t*vy));
+}
+
+function pickLayer(p){
+  let best=null,bestD=28/viewScale();
+  for(const l of scene.layers){
+    let d=99999,pr=l.props||{};
+    if(l.type==="wall"||l.type==="shapeLine"){
+      d=distanceToSegment(p.x,p.y,pr.x1,pr.y1,pr.x2,pr.y2);
+    }else if(["light","smoke","fire","explosion","magic","circle","text"].includes(l.type)){
+      const cd=Math.hypot(p.x-pr.x,p.y-pr.y);
+      if(l.type==="light")d=Math.min(cd,Math.abs(cd-(pr.radius??0)));
+      else if(l.type==="smoke"||l.type==="fire")d=Math.min(cd,Math.abs(cd-(pr.spread??0)));
+      else if(l.type==="circle")d=(cd<=(pr.radius??0))?0:Math.abs(cd-(pr.radius??0));
+      else d=cd;
+    }else if(l.type==="rect"){
+      const minX=Math.min(pr.x1,pr.x2),maxX=Math.max(pr.x1,pr.x2),minY=Math.min(pr.y1,pr.y2),maxY=Math.max(pr.y1,pr.y2);
+      d=(p.x>=minX&&p.x<=maxX&&p.y>=minY&&p.y<=maxY)?0:Math.hypot(Math.max(minX-p.x,0,p.x-maxX),Math.max(minY-p.y,0,p.y-maxY));
+    }else if(l.type==="polygon"){
+      const pts=pr.points||[];
+      if(pts.length>=3&&pointInPolygon(p,pts))d=0;
+      else for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];d=Math.min(d,distanceToSegment(p.x,p.y,a.x,a.y,b.x,b.y));}
+    }
+    if(d<bestD){bestD=d;best=l;}
+  }
+  if(best){
+    placementDraft=null;tool="select";selectedId=best.id;
+    renderLayersUI();renderInspector();openInspector();
+    document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));
+  }
+}
+
+function tryStartDirectManipulation(p){
+  const l=layerById(selectedId);if(!l)return false;
+  const pr=l.props||{},th=14/viewScale();
+  if(l.type==="wall"){
+    const a={x:pr.x1,y:pr.y1},b={x:pr.x2,y:pr.y2};
+    if(Math.hypot(p.x-a.x,p.y-a.y)<th){dragAction={kind:"wallA",id:l.id};return true;}
+    if(Math.hypot(p.x-b.x,p.y-b.y)<th){dragAction={kind:"wallB",id:l.id};return true;}
+    if(distanceToSegment(p.x,p.y,a.x,a.y,b.x,b.y)<th){dragAction={kind:"moveWall",id:l.id,start:p,orig:{x1:pr.x1,y1:pr.y1,x2:pr.x2,y2:pr.y2}};return true;}
+  }
+  if(l.type==="shapeLine"){
+    const a={x:pr.x1,y:pr.y1},b={x:pr.x2,y:pr.y2};
+    if(Math.hypot(p.x-a.x,p.y-a.y)<th){dragAction={kind:"lineA",id:l.id};return true;}
+    if(Math.hypot(p.x-b.x,p.y-b.y)<th){dragAction={kind:"lineB",id:l.id};return true;}
+    if(distanceToSegment(p.x,p.y,a.x,a.y,b.x,b.y)<th){dragAction={kind:"moveLine",id:l.id,start:p,orig:{x1:pr.x1,y1:pr.y1,x2:pr.x2,y2:pr.y2}};return true;}
+  }
+  if(l.type==="light"){
+    const d=Math.hypot(p.x-pr.x,p.y-pr.y);
+    if(Math.abs(d-(pr.radius??0))<th*1.3){dragAction={kind:"resizeLight",id:l.id};return true;}
+    if(d<th*2){dragAction={kind:"movePoint",id:l.id,start:p,orig:{x:pr.x,y:pr.y}};return true;}
+  }
+  if(l.type==="smoke"||l.type==="fire"){
+    const d=Math.hypot(p.x-pr.x,p.y-pr.y),r=pr.spread??10;
+    if(Math.abs(d-r)<th*1.3){dragAction={kind:"resizeSpread",id:l.id};return true;}
+    if(d<th*2){dragAction={kind:"movePoint",id:l.id,start:p,orig:{x:pr.x,y:pr.y}};return true;}
+  }
+  if(["explosion","magic","text"].includes(l.type)){
+    if(Math.hypot(p.x-pr.x,p.y-pr.y)<th*3){dragAction={kind:"movePoint",id:l.id,start:p,orig:{x:pr.x,y:pr.y}};return true;}
+  }
+  if(l.type==="circle"){
+    const d=Math.hypot(p.x-pr.x,p.y-pr.y);
+    if(Math.abs(d-(pr.radius??0))<th*1.3){dragAction={kind:"resizeCircle",id:l.id};return true;}
+    if(d<pr.radius){dragAction={kind:"movePoint",id:l.id,start:p,orig:{x:pr.x,y:pr.y}};return true;}
+  }
+  if(l.type==="rect"){
+    const corners=[
+      {name:"rect11",x:pr.x1,y:pr.y1},
+      {name:"rect21",x:pr.x2,y:pr.y1},
+      {name:"rect12",x:pr.x1,y:pr.y2},
+      {name:"rect22",x:pr.x2,y:pr.y2}
+    ];
+    for(const c of corners){
+      if(Math.hypot(p.x-c.x,p.y-c.y)<th){dragAction={kind:c.name,id:l.id};return true;}
+    }
+    const minX=Math.min(pr.x1,pr.x2),maxX=Math.max(pr.x1,pr.x2),minY=Math.min(pr.y1,pr.y2),maxY=Math.max(pr.y1,pr.y2);
+    if(p.x>=minX&&p.x<=maxX&&p.y>=minY&&p.y<=maxY){dragAction={kind:"moveRect",id:l.id,start:p,orig:{x1:pr.x1,y1:pr.y1,x2:pr.x2,y2:pr.y2}};return true;}
+  }
+  if(l.type==="polygon"){
+    const pts=pr.points||[];
+    for(let i=0;i<pts.length;i++){
+      if(Math.hypot(p.x-pts[i].x,p.y-pts[i].y)<th){dragAction={kind:"polyVertex",id:l.id,index:i};return true;}
+    }
+    if(pointInPolygon(p,pts)){dragAction={kind:"movePolygon",id:l.id,start:p,orig:pts.map(q=>({x:q.x,y:q.y}))};return true;}
+  }
+  return false;
+}
+function updateDirectManipulation(p){
+  if(!dragAction)return;
+  const l=layerById(dragAction.id);if(!l)return;
+  const pr=l.props,dx=p.x-(dragAction.start?.x??0),dy=p.y-(dragAction.start?.y??0);
+  if(dragAction.kind==="wallA"){pr.x1=p.x;pr.y1=p.y;}
+  else if(dragAction.kind==="wallB"){pr.x2=p.x;pr.y2=p.y;}
+  else if(dragAction.kind==="moveWall"){pr.x1=dragAction.orig.x1+dx;pr.y1=dragAction.orig.y1+dy;pr.x2=dragAction.orig.x2+dx;pr.y2=dragAction.orig.y2+dy;}
+  else if(dragAction.kind==="lineA"){pr.x1=p.x;pr.y1=p.y;}
+  else if(dragAction.kind==="lineB"){pr.x2=p.x;pr.y2=p.y;}
+  else if(dragAction.kind==="moveLine"){pr.x1=dragAction.orig.x1+dx;pr.y1=dragAction.orig.y1+dy;pr.x2=dragAction.orig.x2+dx;pr.y2=dragAction.orig.y2+dy;}
+  else if(dragAction.kind==="movePoint"){pr.x=dragAction.orig.x+dx;pr.y=dragAction.orig.y+dy;}
+  else if(dragAction.kind==="resizeLight"){pr.radius=Math.max(1,Math.hypot(p.x-pr.x,p.y-pr.y));}
+  else if(dragAction.kind==="resizeSpread"){pr.spread=Math.max(1,Math.hypot(p.x-pr.x,p.y-pr.y));}
+  else if(dragAction.kind==="resizeCircle"){pr.radius=Math.max(1,Math.hypot(p.x-pr.x,p.y-pr.y));}
+  else if(dragAction.kind==="rect11"){pr.x1=p.x;pr.y1=p.y;}
+  else if(dragAction.kind==="rect21"){pr.x2=p.x;pr.y1=p.y;}
+  else if(dragAction.kind==="rect12"){pr.x1=p.x;pr.y2=p.y;}
+  else if(dragAction.kind==="rect22"){pr.x2=p.x;pr.y2=p.y;}
+  else if(dragAction.kind==="moveRect"){pr.x1=dragAction.orig.x1+dx;pr.y1=dragAction.orig.y1+dy;pr.x2=dragAction.orig.x2+dx;pr.y2=dragAction.orig.y2+dy;}
+  else if(dragAction.kind==="polyVertex"&&pr.points?.[dragAction.index]){pr.points[dragAction.index]={x:p.x,y:p.y};}
+  else if(dragAction.kind==="movePolygon"){pr.points=dragAction.orig.map(q=>({x:q.x+dx,y:q.y+dy}));}
+  renderInspector();
+}
+
+let panDrag=null;
+function beginPan(e){const sp=pointerScreen(e),c=camera();panDrag={sx:sp.x,sy:sp.y,cx:c.x,cy:c.y};}
+function updatePan(e){if(!panDrag)return;const sp=pointerScreen(e),z=viewScale(),c=camera();c.x=panDrag.cx-(sp.x-panDrag.sx)/z;c.y=panDrag.cy-(sp.y-panDrag.sy)/z;rebuildFog();}
+function endPan(){panDrag=null;}
+
+glCanvas.addEventListener("contextmenu",e=>e.preventDefault());
+glCanvas.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const sp=pointerScreen(e),before=screenToWorld(sp.x,sp.y),c=camera();
+  const factor=Math.exp(-e.deltaY*.0015);
+  c.zoom=Math.max(.08,Math.min(16,c.zoom*factor));
+  const after=screenToWorld(sp.x,sp.y);
+  c.x+=before.x-after.x;c.y+=before.y-after.y;
+  rebuildFog();
+},{passive:false});
+
+glCanvas.addEventListener("pointerdown",e=>{
+  if(!IS_PLAYER&&scenarioPickPositionMode){
+    const clip=scenarioSelectedClip();
+    const p=pointerPos(e);
+    if(clip?.template?.props && Number.isFinite(clip.template.props.x) && Number.isFinite(clip.template.props.y)){
+      clip.template.props.x=p.x;
+      clip.template.props.y=p.y;
+      scenarioPickPositionMode=false;
+      renderScenarioEditor();
+      renderInspector();
+      refreshSelectedScenarioClipRuntime();
+    }
+    return;
+  }
+  if(e.button===1||e.button===2||spaceHeld||tool==="pan"){
+    if(tool==="polygon"&&e.button===2&&polygonDraftPoints.length>=3&&!IS_PLAYER){finishPolygonPlacement();return;}
+    beginPan(e);glCanvas.setPointerCapture?.(e.pointerId);return;
+  }
+  if(IS_PLAYER)return;
+  const p=pointerPos(e);
+  if(tool==="select"){
+    if(selectedId&&tryStartDirectManipulation(p))return;
+    pickLayer(p);return;
+  }
+  if(["wall","rect","circle","shapeLine"].includes(tool)){dragStart=p;return;}
+  if(["smoke","light","fire","explosion","magic","text"].includes(tool)){placeDraftPoint(p);return;}
+  if(tool==="polygon"){
+    const last=polygonDraftPoints[polygonDraftPoints.length-1];
+    if(last&&polygonDraftPoints.length>=3&&Math.hypot(p.x-last.x,p.y-last.y)<8/viewScale()){finishPolygonPlacement();return;}
+    polygonDraftPoints.push({x:p.x,y:p.y});return;
+  }
+  if(tool==="fogReveal"||tool==="fogHide"){fogPainting=true;lastFogPoint=p;addFogStroke(p.x,p.y,tool==="fogReveal"?"reveal":"hide");}
+});
+glCanvas.addEventListener("pointermove",e=>{
+  hoverScreenPos=pointerScreen(e);
+  hoverWorldPos=screenToWorld(hoverScreenPos.x,hoverScreenPos.y);
+  if(panDrag){updatePan(e);return;}
+  if(dragAction){updateDirectManipulation(hoverWorldPos);return;}
+  if(IS_PLAYER||!fogPainting)return;
+  const p=hoverWorldPos;
+  if(!lastFogPoint||Math.hypot(p.x-lastFogPoint.x,p.y-lastFogPoint.y)>8/viewScale()){addFogStroke(p.x,p.y,tool==="fogReveal"?"reveal":"hide");lastFogPoint=p;}
+});
+glCanvas.addEventListener("pointerleave",()=>{hoverScreenPos=null;hoverWorldPos=null;});
+window.addEventListener("pointerup",e=>{
+  if(panDrag){endPan();return;}
+  if(dragAction){dragAction=null;sendState(true);return;}
+  if(!IS_PLAYER&&dragStart){
+    const p=pointerPos(e);
+    if(Math.hypot(p.x-dragStart.x,p.y-dragStart.y)>5/viewScale()){
+      if(tool==="wall")placeDraftWall(dragStart,p);
+      else if(tool==="rect")placeDraftRect(dragStart,p);
+      else if(tool==="circle")placeDraftCircle(dragStart,p);
+      else if(tool==="shapeLine")placeDraftShapeLine(dragStart,p);
+    }
+    dragStart=null;
+  }
+  fogPainting=false;lastFogPoint=null;
+});
+
+/* =========================================================
+   UI - TOOLBAR
+   ========================================================= */
+function openInspector(){
+  if(IS_PLAYER)return;
+  const sec=document.getElementById("inspector");sec.classList.remove("collapsed");
+  setTimeout(()=>sec.scrollIntoView({behavior:"smooth",block:"nearest"}),0);
+}
+function setTool(t){
+  scenarioSelectedClipId=null;
+  scenarioPickPositionMode=false;
+  tool=t;
+  if(["wall","smoke","light","fire","explosion","magic","text","rect","circle","shapeLine","polygon"].includes(t)){
+    placementDraft=makePlacementDraft(t);selectedId=null;
+    if(t!=="polygon")polygonDraftPoints=[];
+    renderLayersUI();renderInspector();openInspector();
+  }else if(t!=="select"){placementDraft=null;polygonDraftPoints=[];renderInspector();}
+  else {placementDraft=null;renderInspector();}
+  document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));
+}
+document.querySelectorAll("[data-tool]").forEach(b=>b.addEventListener("click",()=>setTool(b.dataset.tool)));
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&!(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))){spaceHeld=true;e.preventDefault();}
+  if(IS_PLAYER)return;
+  if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+  const m={"0":"pan","1":"select","2":"wall","3":"smoke","4":"light","5":"fogReveal","6":"fogHide","7":"fire","8":"explosion","9":"magic"};
+  if(m[e.key])setTool(m[e.key]);
+  if(e.key==="Enter"&&tool==="polygon"&&polygonDraftPoints.length>=3){e.preventDefault();finishPolygonPlacement();}
+  if(e.key==="Escape"&&tool==="polygon"){polygonDraftPoints=[];}
+  if((e.key==="Delete"||e.key==="Backspace")&&selectedId)deleteLayer(selectedId);
+});
+document.addEventListener("keyup",e=>{if(e.code==="Space")spaceHeld=false;});
+
+/* =========================================================
+   UI - LAYERS
+   ========================================================= */
+const layersEl=document.getElementById("layers");
+function renderLayersUI(){
+  if(IS_PLAYER)return;
+  layersEl.innerHTML="";
+  [...scene.layers].filter(l=>!l.__scenarioRuntime).reverse().forEach(l=>{
+    const row=document.createElement("div");
+    row.className="layer"+(l.id===selectedId?" selected":"");
+
+    const m=document.createElement("button");
+    m.className="eye"+(l.showMaster?"":" off");
+    m.textContent="M";
+    m.title="Visible on Master";
+    m.onclick=e=>{e.stopPropagation();l.showMaster=!l.showMaster;renderLayersUI();rebuildFog();sendState(true);};
+
+    const p=document.createElement("button");
+    p.className="eye"+(l.showPlayer?"":" off");
+    p.textContent="P";
+    p.title="Visible on Player";
+    p.onclick=e=>{e.stopPropagation();l.showPlayer=!l.showPlayer;renderLayersUI();sendState(true);};
+
+    const name=document.createElement("div");
+    name.className="name";
+    name.innerHTML=`${l.name}<span class="badge ${l.temporary?"temporaryBadge":""}">${l.type}${l.temporary?" • one-shot":""}</span>`;
+    name.onclick=()=>{scenarioSelectedClipId=null;scenarioPickPositionMode=false;placementDraft=null;tool="select";selectedId=l.id;renderLayersUI();renderInspector();renderScenarioEditor();openInspector();document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));};
+
+    const del=document.createElement("button");
+    del.className="deleteLayer";
+    del.textContent="×";
+    del.title="Delete layer";
+    del.onclick=e=>{e.stopPropagation();deleteLayer(l.id);};
+
+    row.append(m,p,name,del);
+    layersEl.appendChild(row);
+  });
+}
+function deleteLayer(id){
+  const i=scene.layers.findIndex(l=>l.id===id);
+  if(i<0)return;
+  scene.layers.splice(i,1);
+  runtimes.delete(id);
+  if(selectedId===id)selectedId=null;
+  renderLayersUI();renderInspector();rebuildFog();sendState(true);
+}
+
+/* =========================================================
+   UI - INSPECTOR
+   ========================================================= */
+const inspectorBody=document.getElementById("inspectorBody");
+
+function controlRange(label,obj,key,min,max,step,suffix=""){
+  const row=document.createElement("div");row.className="row";
+  const lab=document.createElement("label");lab.textContent=label;
+  const slider=document.createElement("input");slider.type="range";slider.className="grow";
+  slider.min=min;slider.max=max;slider.step=step;
+  const number=document.createElement("input");number.type="number";number.className="rangeNumber";
+  number.step=step; number.value=obj[key];
+  number.title=suffix?`Value (${suffix.trim()})`:"Exact value";
+  const ensureBounds=v=>{
+    if(v < Number(slider.min)) slider.min = v;
+    if(v > Number(slider.max)) slider.max = v;
+  };
+  const sync=v=>{
+    let n=Number(v);
+    if(!Number.isFinite(n))return;
+    ensureBounds(n);
+    obj[key]=n;
+    slider.value=n;
+    number.value=n;
+    onInspectorChanged();
+  };
+  ensureBounds(Number(obj[key])||0);
+  slider.value=obj[key];
+  slider.oninput=()=>{obj[key]=Number(slider.value);number.value=slider.value;onInspectorChanged();};
+  number.onchange=()=>sync(number.value);
+  number.onkeydown=e=>{if(e.key==="Enter"){number.blur();}};
+  row.append(lab,slider,number);return row;
+}
+function controlNumber(label,obj,key,step=.01){
+  const row=document.createElement("div");row.className="row";
+  const lab=document.createElement("label");lab.textContent=label;
+  const input=document.createElement("input");input.type="number";input.step=step;input.value=obj[key];
+  input.onchange=()=>{obj[key]=Number(input.value);onInspectorChanged();};
+  row.append(lab,input);return row;
+}
+function controlColor(label,obj,key){
+  const row=document.createElement("div");row.className="row";
+  const lab=document.createElement("label");lab.textContent=label;
+  const input=document.createElement("input");input.type="color";input.value=obj[key]||"#ffffff";
+  const alpha=document.createElement("input");alpha.type="number";alpha.className="colorAlpha";alpha.min=0;alpha.max=1;alpha.step=.05;alpha.value=obj[key+"Alpha"]??1;alpha.title="Color alpha / transparency (0–1)";
+  input.oninput=()=>{obj[key]=input.value;onInspectorChanged();};
+  alpha.onchange=()=>{obj[key+"Alpha"]=Math.max(0,Math.min(1,Number(alpha.value)||0));alpha.value=obj[key+"Alpha"];onInspectorChanged();};
+  const alphaMark=document.createElement("span");alphaMark.textContent="α";alphaMark.title="Alpha / transparency";alphaMark.style.color="#9aa4af";alphaMark.style.fontSize="11px";
+  row.append(lab,input,alphaMark,alpha);return row;
+}
+function controlCheck(label,obj,key){
+  const row=document.createElement("div");row.className="row";
+  const lab=document.createElement("label");lab.textContent=label;
+  const input=document.createElement("input");input.type="checkbox";input.checked=!!obj[key];
+  input.onchange=()=>{obj[key]=input.checked;onInspectorChanged();};
+  row.append(lab,input);return row;
+}
+function controlText(label,obj,key){
+  const row=document.createElement("div");row.className="row";
+  const lab=document.createElement("label");lab.textContent=label;
+  const input=document.createElement("input");input.type="text";input.className="grow";input.value=obj[key]||"";
+  input.onchange=()=>{obj[key]=input.value;onInspectorChanged();};
+  row.append(lab,input);return row;
+}
+function onInspectorChanged(){
+  if(scenarioSelectedClipId){
+    const clip=scenarioSelectedClip();
+    if(clip){
+      clip.name=clip.template?.name||clip.name;
+      if(clip.template?.type==="explosion"||clip.template?.type==="magic"){
+        clip.duration=Math.max(.1,Number(clip.template.props?.duration)||clip.duration);
+      }
+      scenario.duration=Math.max(scenario.duration,clip.start+clip.duration);
+    }
+    renderScenarioEditor();
+    refreshSelectedScenarioClipRuntime();
+    return;
+  }
+  renderLayersUI();
+  rebuildFog();
+  if(!placementDraft)sendState(false);
+}
+function renderInspector(){
+  if(IS_PLAYER)return;
+  inspectorBody.innerHTML="";
+  const scenarioClip=scenarioSelectedClip();
+  const l=scenarioClip?.template||placementDraft||layerById(selectedId);
+  if(!l){inspectorBody.textContent="Select an existing layer, choose an effect tool, or select a scenario clip.";return;}
+
+  if(scenarioClip){
+    const note=document.createElement("div");note.className="inspectorDraft";
+    note.textContent=`Scenario clip effect settings — editing "${scenarioClip.name}". These settings are stored in the scenario JSON, not the battlemap scene.`;
+    inspectorBody.appendChild(note);
+  }else if(placementDraft){
+    const note=document.createElement("div");note.className="inspectorDraft";
+    note.textContent=l.type==="polygon"
+      ?"Polygon placement — configure style, click vertices on the map, then press Enter or right-click to finish."
+      :"Placement settings — configure these values, then click or drag on the map to place the object.";
+    inspectorBody.appendChild(note);
+  }
+  inspectorBody.appendChild(controlText("Name",l,"name"));
+  const actionRow=document.createElement("div");actionRow.className="toolbar";actionRow.style.marginBottom="8px";
+  const duplicate=document.createElement("button");duplicate.textContent="Duplicate";
+  duplicate.onclick=()=>{
+    const copy=JSON.parse(JSON.stringify(l));
+    copy.id=uid(l.type);
+    copy.name=l.name+" copy";
+    if(copy.temporary){copy.props.startTime=Date.now();copy.props.seed=Math.floor(Math.random()*1e9);}
+    scene.layers.push(copy);selectedId=copy.id;renderLayersUI();renderInspector();sendState(true);
+  };
+  if(!placementDraft&&!scenarioClip){actionRow.appendChild(duplicate);inspectorBody.appendChild(actionRow);}
+  const p=l.props;
+  if(["smoke","light","fire","explosion","magic","text","circle"].includes(l.type) && !placementDraft){
+    inspectorBody.append(controlNumber("X",p,"x",1),controlNumber("Y",p,"y",1));
+  }
+
+  if(l.type==="smoke"){
+    inspectorBody.append(
+      controlRange("Emission",p,"emissionRate",1,150,1,"/s"),
+      controlRange("Min life",p,"minLife",.5,20,.1,"s"),
+      controlRange("Max life",p,"maxLife",1,30,.1,"s"),
+      controlRange("Min size",p,"minSize",5,180,1,"px"),
+      controlRange("Max size",p,"maxSize",10,300,1,"px"),
+      controlRange("Growth",p,"growth",0,40,.5,""),
+      controlRange("Turbulence",p,"turbulence",0,80,1,""),
+      controlRange("Drift",p,"drift",0,50,1,""),
+      controlRange("Opacity",p,"opacity",.01,.8,.01,""),
+      controlRange("Spread",p,"spread",1,3000,1,"wu"),
+      controlColor("Color",p,"color")
+    );
+    if(!scenarioClip){
+      const clear=document.createElement("button");clear.textContent="Clear Current Smoke";
+      clear.onclick=()=>{const rt=runtimes.get(l.id);if(rt)rt.particles.length=0;};
+      inspectorBody.appendChild(clear);
+    }
+  } else if(l.type==="light"){
+    inspectorBody.append(
+      controlRange("Radius",p,"radius",20,30000,5,"wu"),
+      controlRange("Intensity",p,"intensity",0,4,.05,""),
+      controlColor("Color",p,"color")
+    );
+  } else if(l.type==="wall"){
+    if(!placementDraft)inspectorBody.append(controlNumber("X1",p,"x1",1),controlNumber("Y1",p,"y1",1),controlNumber("X2",p,"x2",1),controlNumber("Y2",p,"y2",1));
+    inspectorBody.append(
+      controlRange("Thickness",p,"thickness",1,40,1,"wu"),
+      controlColor("Color",p,"color"),
+      controlCheck("Block light",p,"blocksLight"),
+      controlCheck("Block smoke",p,"blocksSmoke")
+    );
+  } else if(l.type==="wind"){
+    inspectorBody.append(
+      controlRange("Wind X",p,"x",-120,120,1,""),
+      controlRange("Wind Y",p,"y",-120,120,1,""),
+      controlRange("Turbulence ×",p,"turbulenceScale",0,3,.05,"")
+    );
+  } else if(l.type==="fog"){
+    inspectorBody.append(
+      controlRange("Opacity",p,"opacity",0,1,.01,""),
+      controlColor("Color",p,"color")
+    );
+  } else if(l.type==="fire"){
+    inspectorBody.append(
+      controlRange("Emission",p,"emissionRate",5,240,1,"/s"),
+      controlRange("Min size",p,"minSize",4,80,1,"px"),
+      controlRange("Max size",p,"maxSize",6,120,1,"px"),
+      controlRange("Spread",p,"spread",1,3000,1,"wu"),
+      controlRange("Opacity",p,"opacity",.05,1,.01,""),
+      controlRange("Wind influence",p,"windInfluence",0,2,.05,""),
+      controlColor("Hot color",p,"hotColor"),
+      controlColor("Cool color",p,"coolColor"),
+      controlCheck("Cast light",p,"castLight"),
+      controlRange("Light radius",p,"lightRadius",10,30000,5,"wu"),
+      controlRange("Light power",p,"lightIntensity",0,4,.05,""),
+      controlColor("Light color",p,"lightColor")
+    );
+  } else if(l.type==="rain"){
+    inspectorBody.append(
+      controlRange("Density",p,"density",10,3000,10,""),
+      controlRange("Cycle speed",p,"speedFactor",.1,5,.05,""),
+      controlRange("Min life",p,"minLife",.1,3,.05,"s"),
+      controlRange("Max life",p,"maxLife",.2,5,.05,"s"),
+      controlRange("Min ripple",p,"minRadius",.2,30,.1,"wu"),
+      controlRange("Max ripple",p,"maxRadius",.5,60,.1,"wu"),
+      controlRange("Ring width",p,"ringWidth",.1,8,.1,"wu"),
+      controlRange("Opacity",p,"opacity",.02,1,.01,""),
+      controlCheck("Double ring",p,"doubleRing"),
+      controlColor("Color",p,"color")
+    );
+  } else if(l.type==="explosion"||l.type==="magic"){
+    inspectorBody.append(
+      controlRange("Duration",p,"duration",.4,8,.1,"s"),
+      controlRange("Particles",p,"particles",12,700,1,""),
+      controlRange("Opacity",p,"opacity",.05,1,.01,""),
+      controlColor("Color",p,"color"),
+      controlColor("Hot color",p,"hotColor"),
+      controlRange("Flash time",p,"flashDuration",.05,2,.05,"s"),
+      controlRange("Light radius",p,"lightRadius",10,30000,5,"wu"),
+      controlRange("Light power",p,"lightIntensity",0,6,.05,""),
+      controlColor("Light color",p,"lightColor")
+    );
+    if(l.type==="explosion"){
+      inspectorBody.append(
+        controlRange("Smoke particles",p,"smokeParticles",0,1000,1,""),
+        controlRange("Smoke spread",p,"smokeSpread",1,5000,1,"wu"),
+        controlRange("Smoke min size",p,"smokeMinSize",1,400,1,"wu"),
+        controlRange("Smoke max size",p,"smokeMaxSize",1,800,1,"wu"),
+        controlRange("Smoke growth",p,"smokeGrowth",0,100,1,""),
+        controlRange("Smoke min life",p,"smokeMinLife",.1,15,.1,"s"),
+        controlRange("Smoke max life",p,"smokeMaxLife",.2,20,.1,"s"),
+        controlRange("Smoke opacity",p,"smokeOpacity",0,1,.01,""),
+        controlColor("Smoke color",p,"smokeColor")
+      );
+    }
+    const note=document.createElement("div");note.className="section-note";
+    note.textContent="One-shot effect: it automatically removes itself after the duration.";
+    inspectorBody.appendChild(note);
+  } else if(l.type==="text"){
+    inspectorBody.append(
+      controlText("Text",p,"text"),
+      controlRange("Font size",p,"fontSize",8,400,1,"px"),
+      controlText("Font family",p,"fontFamily"),
+      controlCheck("Bold",p,"bold"),
+      controlCheck("Italic",p,"italic"),
+      controlColor("Fill color",p,"fillColor"),
+      controlColor("Outline color",p,"strokeColor"),
+      controlRange("Outline width",p,"lineWidth",0,30,.5,"px")
+    );
+  } else if(l.type==="rect"){
+    if(!placementDraft)inspectorBody.append(controlNumber("X1",p,"x1",1),controlNumber("Y1",p,"y1",1),controlNumber("X2",p,"x2",1),controlNumber("Y2",p,"y2",1));
+    inspectorBody.append(
+      controlRange("Line width",p,"lineWidth",.5,80,.5,"px"),
+      controlCheck("Dashed",p,"dashed"),
+      controlCheck("Filled",p,"filled"),
+      controlRange("Fill opacity",p,"fillOpacity",0,1,.01,""),
+      controlColor("Line color",p,"strokeColor"),
+      controlColor("Fill color",p,"fillColor")
+    );
+  } else if(l.type==="circle"){
+    inspectorBody.append(
+      controlRange("Radius",p,"radius",1,50000,1,"wu"),
+      controlRange("Line width",p,"lineWidth",.5,80,.5,"px"),
+      controlCheck("Dashed",p,"dashed"),
+      controlCheck("Filled",p,"filled"),
+      controlRange("Fill opacity",p,"fillOpacity",0,1,.01,""),
+      controlColor("Line color",p,"strokeColor"),
+      controlColor("Fill color",p,"fillColor")
+    );
+  } else if(l.type==="shapeLine"){
+    if(!placementDraft)inspectorBody.append(controlNumber("X1",p,"x1",1),controlNumber("Y1",p,"y1",1),controlNumber("X2",p,"x2",1),controlNumber("Y2",p,"y2",1));
+    inspectorBody.append(
+      controlRange("Line width",p,"lineWidth",.5,80,.5,"px"),
+      controlCheck("Dashed",p,"dashed"),
+      controlColor("Line color",p,"strokeColor")
+    );
+  } else if(l.type==="polygon"){
+    const n=document.createElement("div");n.className="section-note";n.textContent=`Vertices: ${(p.points||[]).length}`;
+    inspectorBody.appendChild(n);
+    inspectorBody.append(
+      controlRange("Line width",p,"lineWidth",.5,80,.5,"px"),
+      controlCheck("Dashed",p,"dashed"),
+      controlCheck("Closed",p,"closed"),
+      controlCheck("Filled",p,"filled"),
+      controlRange("Fill opacity",p,"fillOpacity",0,1,.01,""),
+      controlColor("Line color",p,"strokeColor"),
+      controlColor("Fill color",p,"fillColor")
+    );
+  }
+}
+
+/* =========================================================
+   UI - MAP SETTINGS
+   ========================================================= */
+function bindSceneControls(){
+  const gridEnabled=document.getElementById("gridEnabled");
+  const gridSize=document.getElementById("gridSize");
+  const gridOpacity=document.getElementById("gridOpacity");
+  const backgroundFit=document.getElementById("backgroundFit");
+  const masterFx=document.getElementById("masterFxGlobal");
+  const playerFx=document.getElementById("playerFxGlobal");
+  const fogBrush=document.getElementById("fogBrush");
+  const worldWidthInput=document.getElementById("worldWidth");
+  const worldHeightInput=document.getElementById("worldHeight");
+  const gridSizeVal=document.getElementById("gridSizeVal");
+  const gridOpacityVal=document.getElementById("gridOpacityVal");
+  const fogBrushVal=document.getElementById("fogBrushVal");
+  worldWidthInput.onchange=()=>{scene.settings.worldWidth=Math.max(100,Number(worldWidthInput.value)||1920);worldWidthInput.value=scene.settings.worldWidth;clampCameraToWorld();rebuildFog();sendState(true);};
+  worldHeightInput.onchange=()=>{scene.settings.worldHeight=Math.max(100,Number(worldHeightInput.value)||1080);worldHeightInput.value=scene.settings.worldHeight;clampCameraToWorld();rebuildFog();sendState(true);};
+  document.getElementById("fitMap").onclick=()=>{resetLocalCamera();rebuildFog();};
+  document.getElementById("useImageSize").onclick=()=>{if(bgImageSize.w>1&&bgImageSize.h>1){scene.settings.worldWidth=bgImageSize.w;scene.settings.worldHeight=bgImageSize.h;resetLocalCamera();worldWidthInput.value=bgImageSize.w;worldHeightInput.value=bgImageSize.h;rebuildFog();sendState(true);}};
+  gridEnabled.onchange=()=>{scene.settings.gridEnabled=gridEnabled.checked;sendState(true);};
+  gridSize.oninput=()=>{scene.settings.gridSize=Number(gridSize.value);gridSizeVal.value=gridSize.value;sendState(false);};
+  gridSizeVal.onchange=()=>{let v=Math.max(16,Math.min(256,Number(gridSizeVal.value)||64));gridSizeVal.value=v;gridSize.value=v;scene.settings.gridSize=v;sendState(true);};
+  gridOpacity.oninput=()=>{scene.settings.gridOpacity=Number(gridOpacity.value);gridOpacityVal.value=Number(gridOpacity.value).toFixed(2);sendState(false);};
+  gridOpacityVal.onchange=()=>{let v=Math.max(0,Math.min(.6,Number(gridOpacityVal.value)||0));gridOpacityVal.value=v;gridOpacity.value=v;scene.settings.gridOpacity=v;sendState(true);};
+  backgroundFit.onchange=()=>{scene.settings.backgroundFit=backgroundFit.value;sendState(true);};
+  masterFx.onchange=()=>{scene.settings.masterFxGlobal=masterFx.checked;sendState(true);};
+  playerFx.onchange=()=>{scene.settings.playerFxGlobal=playerFx.checked;sendState(true);};
+  fogBrush.oninput=()=>fogBrushVal.value=fogBrush.value;
+  fogBrushVal.onchange=()=>{let v=Math.max(5,Math.min(500,Number(fogBrushVal.value)||80));fogBrushVal.value=v;fogBrush.value=v;};
+
+
+  ensureAudioConfig();
+  for(const key of ["explosion","fire","rain","magic","ambient"]){
+    const cap=key.charAt(0).toUpperCase()+key.slice(1);
+    const textInput=document.getElementById("sound"+cap);
+    const fileInput=document.getElementById("sound"+cap+"File");
+    const volRange=document.getElementById("sound"+cap+"Vol");
+    const volNum=document.getElementById("sound"+cap+"VolVal");
+    const mute=document.getElementById("sound"+cap+"Mute");
+    const play=document.getElementById("sound"+cap+"Play");
+
+    if(textInput)textInput.onchange=()=>{
+      const s=soundSlot(key);
+      s.src=textInput.value||"";
+      s.label=textInput.value||"";
+      syncAudioUI();sendState(true);
+    };
+    if(fileInput)fileInput.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const r=new FileReader();
+      r.onload=()=>{
+        const s=soundSlot(key);
+        s.src=r.result;
+        s.label=file.name;
+        syncAudioUI();sendState(true);
+      };
+      r.readAsDataURL(file);
+    };
+    if(volRange&&volNum){
+      volRange.oninput=()=>{
+        const s=soundSlot(key);
+        s.volume=Math.max(0,Math.min(1,Number(volRange.value)));
+        volNum.value=s.volume.toFixed(2);
+        updateAudioPlayback();sendState(false);
+      };
+      volNum.onchange=()=>{
+        const s=soundSlot(key);
+        s.volume=Math.max(0,Math.min(1,Number(volNum.value)||0));
+        volRange.value=s.volume;volNum.value=s.volume.toFixed(2);
+        updateAudioPlayback();sendState(true);
+      };
+    }
+    if(mute)mute.onchange=()=>{
+      soundSlot(key).muted=!!mute.checked;
+      updateAudioPlayback();sendState(true);
+    };
+    if(play)play.onclick=()=>{
+      soundsPaused=false;
+      if(key==="fire"||key==="rain"||key==="ambient"){
+        const a=audioLoops[key],s=soundSlot(key);
+        if(!s.src||s.muted)return;
+        if(a.dataset.src!==(s.src||"")){a.dataset.src=s.src;a.src=s.src;}
+        a.volume=s.volume??1;a.play().catch(()=>{});
+      }else playOneShotSound(key);
+    };
+  }
+  document.getElementById("stopAllSounds").onclick=()=>stopAllAudio();
+
+  document.getElementById("backgroundFile").onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{scene.settings.backgroundImage=r.result;ensureBackgroundTexture();sendState(true);};
+    r.readAsDataURL(file);
+  };
+  document.getElementById("clearBackground").onclick=()=>{
+    scene.settings.backgroundImage="";ensureBackgroundTexture();sendState(true);
+  };
+}
+function applySceneSettingsToUI(){
+  ensureBackgroundTexture();
+  if(IS_PLAYER)return;
+  document.getElementById("worldWidth").value=worldWidth();
+  document.getElementById("worldHeight").value=worldHeight();
+  document.getElementById("gridEnabled").checked=!!scene.settings.gridEnabled;
+  document.getElementById("gridSize").value=scene.settings.gridSize??64;
+  document.getElementById("gridSizeVal").value=scene.settings.gridSize??64;
+  document.getElementById("gridOpacity").value=scene.settings.gridOpacity??.12;
+  document.getElementById("gridOpacityVal").value=Number(scene.settings.gridOpacity??.12).toFixed(2);
+  document.getElementById("backgroundFit").value=scene.settings.backgroundFit||"stretch";
+  document.getElementById("masterFxGlobal").checked=scene.settings.masterFxGlobal!==false;
+  document.getElementById("playerFxGlobal").checked=scene.settings.playerFxGlobal!==false;
+  document.getElementById("fogBrushVal").value=document.getElementById("fogBrush").value;
+  ensureAudioConfig();
+  syncAudioUI();
+  renderLayersUI();renderInspector();
+}
+if(!IS_PLAYER)bindSceneControls();
+
+/* =========================================================
+   UI - FOG / ADDERS / SAVE
+   ========================================================= */
+if(!IS_PLAYER){
+  document.getElementById("resetFog").onclick=()=>{
+    scene.fog.base="hidden";scene.fog.strokes=[];rebuildFog();sendState(true);
+  };
+  document.getElementById("clearFog").onclick=()=>{
+    scene.fog.base="revealed";scene.fog.strokes=[];rebuildFog();sendState(true);
+  };
+  document.getElementById("addWind").onclick=()=>{
+    addLayer({id:uid("wind"),type:"wind",name:"Wind",showMaster:true,showPlayer:true,props:{x:18,y:-6,turbulenceScale:1}});
+  };
+  document.getElementById("addFog").onclick=()=>{
+    if(fogLayer()){selectedId=fogLayer().id;renderLayersUI();renderInspector();return;}
+    addLayer({id:uid("fog"),type:"fog",name:"Fog of War",showMaster:true,showPlayer:true,props:{opacity:.82,color:"#101216",colorAlpha:1}});
+    rebuildFog();
+  };
+  document.getElementById("addRain").onclick=()=>{
+    addLayer({id:uid("rain"),type:"rain",name:"Rain",showMaster:true,showPlayer:true,props:{
+      density:280,speedFactor:1,minLife:.35,maxLife:1.05,minRadius:1.2,maxRadius:10,ringWidth:.9,doubleRing:true,opacity:.42,color:"#a9c9e8",colorAlpha:1
+    }});
+  };
+  document.getElementById("openPlayer").onclick=()=>{
+    const base=location.href.split("?")[0];
+    playerWindow=window.open(base+"?view=player","battlemapPlayer","width=1200,height=800");
+    setTimeout(()=>sendState(true),250);
+  };
+  document.getElementById("syncNow").onclick=()=>sendState(true);
+
+  document.getElementById("saveScene").onclick=()=>{
+    const blob=new Blob([JSON.stringify(serializeSceneForSave(),null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="battlemap-scene.json";
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  };
+  document.getElementById("loadScene").onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        clearAllScenarioRuntime(false);
+        scenarioRuntime.playing=false;
+        scenarioRuntime.time=0;
+        scene=migrateScene(JSON.parse(r.result));
+        ensureAudioConfig();
+        selectedId=null;
+        runtimes.clear();
+        applySceneSettingsToUI();
+        rebuildFog();
+        ensureBackgroundTexture();
+        sendState(true);
+      }catch(err){alert("Invalid scene JSON: "+err.message);}
+    };
+    r.readAsText(file);
+  };
+  document.getElementById("clearTemporary").onclick=()=>{
+    const ids=scene.layers.filter(l=>l.temporary).map(l=>l.id);
+    scene.layers=scene.layers.filter(l=>!l.temporary);
+    ids.forEach(id=>runtimes.delete(id));
+    for(const [clipId,layerId] of [...scenarioRuntime.active.entries()]){
+      if(ids.includes(layerId))scenarioRuntime.active.delete(clipId);
+    }
+    if(ids.includes(selectedId))selectedId=null;
+    renderLayersUI();renderInspector();sendState(true);
+  };
+  document.getElementById("clearScene").onclick=()=>{
+    if(!confirm("Clear the entire scene?"))return;
+    clearAllScenarioRuntime(false);
+    scenarioRuntime.playing=false;
+    scenarioRuntime.time=0;
+    scene=defaultScene();selectedId=null;runtimes.clear();
+    resetLocalCamera();
+    applySceneSettingsToUI();rebuildFog();ensureBackgroundTexture();sendState(true);
+  };
+}
+
+
+/* =========================================================
+   SCENARIO EDITOR UI
+   ========================================================= */
+const scenarioEditorEl=document.getElementById("scenarioEditor");
+const scenarioTimelineInner=document.getElementById("scenarioTimelineInner");
+const scenarioTimelineScroll=document.getElementById("scenarioTimelineScroll");
+
+function openScenarioEditor(){
+  if(IS_PLAYER)return;
+  scenarioEditorEl.classList.remove("hidden");
+  document.body.classList.add("scenario-open");
+  setTimeout(()=>{resize();renderScenarioEditor();},0);
+}
+function closeScenarioEditor(){
+  scenarioEditorEl.classList.add("hidden");
+  document.body.classList.remove("scenario-open");
+  setTimeout(resize,0);
+}
+function updateScenarioTransportUI(){
+  if(IS_PLAYER)return;
+  const p=document.getElementById("scenarioPlay");
+  const pa=document.getElementById("scenarioPause");
+  if(p)p.classList.toggle("active",scenarioRuntime.playing);
+  if(pa)pa.classList.toggle("active",!scenarioRuntime.playing&&scenarioRuntime.time>0);
+  const label=document.getElementById("scenarioTimeLabel");
+  if(label)label.textContent=`${formatScenarioTime(scenarioRuntime.time)} / ${formatScenarioTime(scenario.duration)}`;
+}
+function updateScenarioClipControls(){
+  if(IS_PLAYER)return;
+  const c=scenarioSelectedClip();
+  const info=document.getElementById("scenarioSelectedInfo");
+  const start=document.getElementById("scenarioClipStart");
+  const dur=document.getElementById("scenarioClipDuration");
+  const m=document.getElementById("scenarioClipMaster");
+  const p=document.getElementById("scenarioClipPlayer");
+  const pick=document.getElementById("scenarioPickPosition");
+  const dup=document.getElementById("scenarioDuplicateClip");
+  const del=document.getElementById("scenarioDeleteClip");
+
+  for(const el of [start,dur,m,p,pick,dup,del])if(el)el.disabled=!c;
+
+  if(!c){
+    if(info)info.textContent="No clip selected";
+    return;
+  }
+  if(info)info.textContent=`${c.name} • ${c.template?.type||"effect"}`;
+  if(start)start.value=Number(c.start).toFixed(2);
+  if(dur)dur.value=Number(c.duration).toFixed(2);
+  if(m)m.checked=c.template.showMaster!==false;
+  if(p)p.checked=c.template.showPlayer!==false;
+  if(pick){
+    const props=c.template?.props||{};
+    pick.disabled=!(Number.isFinite(props.x)&&Number.isFinite(props.y));
+    pick.textContent=scenarioPickPositionMode?"Click Map…":"Pick Position on Map";
+  }
+}
+function updateScenarioPlayhead(){
+  if(IS_PLAYER)return;
+  const ph=document.getElementById("scenarioPlayhead");
+  if(ph)ph.style.left=`${SCENARIO_LABEL_WIDTH+scenarioRuntime.time*scenarioPxPerSecond()}px`;
+  updateScenarioTransportUI();
+}
+function renderScenarioEditor(){
+  if(IS_PLAYER||!scenarioTimelineInner)return;
+  const oldScrollLeft=scenarioTimelineScroll.scrollLeft;
+  const oldScrollTop=scenarioTimelineScroll.scrollTop;
+  const pps=scenarioPxPerSecond();
+  const width=Math.max(
+    scenarioTimelineScroll.clientWidth||900,
+    SCENARIO_LABEL_WIDTH+scenario.duration*pps+100
+  );
+
+  document.getElementById("scenarioName").value=scenario.name;
+  document.getElementById("scenarioDuration").value=Number(scenario.duration).toFixed(2);
+  document.getElementById("scenarioLoop").checked=!!scenario.loop;
+
+  scenarioTimelineInner.innerHTML="";
+  scenarioTimelineInner.style.width=`${width}px`;
+
+  const ruler=document.createElement("div");
+  ruler.className="scenario-ruler";
+  ruler.style.width=`${width}px`;
+  const rulerLabel=document.createElement("div");
+  rulerLabel.className="scenario-ruler-label";
+  rulerLabel.textContent="Tracks / Effects";
+  ruler.appendChild(rulerLabel);
+
+  let tickStep=1;
+  if(pps<45)tickStep=5;
+  else if(pps<75)tickStep=2;
+  for(let t=0;t<=scenario.duration+.001;t+=tickStep){
+    const tick=document.createElement("div");
+    tick.className="scenario-tick";
+    tick.style.left=`${SCENARIO_LABEL_WIDTH+t*pps}px`;
+    tick.textContent=`${t.toFixed(tickStep<1?1:0)}s`;
+    ruler.appendChild(tick);
+  }
+  ruler.addEventListener("pointerdown",e=>{
+    if(e.button!==0)return;
+    const r=scenarioTimelineInner.getBoundingClientRect();
+    const x=e.clientX-r.left-SCENARIO_LABEL_WIDTH;
+    seekScenario(x/pps,false);
+  });
+  scenarioTimelineInner.appendChild(ruler);
+
+  if(!scenario.clips.length){
+    const empty=document.createElement("div");
+    empty.className="scenario-empty";
+    empty.textContent="No clips. Add an effect clip, or capture a configured layer from the map.";
+    scenarioTimelineInner.appendChild(empty);
+  }
+
+  for(const clip of scenario.clips){
+    const row=document.createElement("div");
+    row.className="scenario-track";
+    row.style.width=`${width}px`;
+
+    const label=document.createElement("div");
+    label.className="scenario-track-label";
+    label.innerHTML=`<div>${clip.name}</div><div class="type">${clip.template?.type||"effect"} • ${clip.start.toFixed(2)}s → ${(clip.start+clip.duration).toFixed(2)}s</div>`;
+    label.onclick=()=>{
+      scenarioSelectedClipId=clip.id;
+      placementDraft=null;
+      selectedId=null;
+      renderLayersUI();
+      renderScenarioEditor();
+      renderInspector();
+      openInspector();
+    };
+    row.appendChild(label);
+
+    const block=document.createElement("div");
+    block.className=`scenario-clip scenario-chip-${clip.template?.type||"effect"}${clip.id===scenarioSelectedClipId?" selected":""}`;
+    block.style.left=`${SCENARIO_LABEL_WIDTH+clip.start*pps}px`;
+    block.style.width=`${Math.max(24,clip.duration*pps)}px`;
+    block.title=`${clip.name}\nStart: ${clip.start.toFixed(2)} s\nDuration: ${clip.duration.toFixed(2)} s`;
+
+    const txt=document.createElement("div");
+    txt.className="clipText";
+    txt.textContent=`${clip.name}  ${clip.start.toFixed(1)}s / ${clip.duration.toFixed(1)}s`;
+    block.appendChild(txt);
+
+    const handle=document.createElement("div");
+    handle.className="scenario-resize";
+    block.appendChild(handle);
+
+    block.addEventListener("pointerdown",e=>{
+      e.stopPropagation();
+      scenarioSelectedClipId=clip.id;
+      placementDraft=null;
+      selectedId=null;
+      renderLayersUI();
+      renderInspector();
+      updateScenarioClipControls();
+
+      const resizing=e.target===handle;
+      const startX=e.clientX;
+      const originalStart=clip.start;
+      const originalDuration=clip.duration;
+      block.setPointerCapture?.(e.pointerId);
+
+      const move=ev=>{
+        const delta=(ev.clientX-startX)/pps;
+        if(resizing){
+          clip.duration=Math.max(.1,originalDuration+delta);
+          if(clip.template?.type==="explosion"||clip.template?.type==="magic"){
+            clip.template.props.duration=clip.duration;
+          }
+        }else{
+          clip.start=Math.max(0,originalStart+delta);
+        }
+        scenario.duration=Math.max(scenario.duration,clip.start+clip.duration);
+        block.style.left=`${SCENARIO_LABEL_WIDTH+clip.start*pps}px`;
+        block.style.width=`${Math.max(24,clip.duration*pps)}px`;
+        txt.textContent=`${clip.name}  ${clip.start.toFixed(1)}s / ${clip.duration.toFixed(1)}s`;
+        updateScenarioClipControls();
+      };
+      const up=()=>{
+        document.removeEventListener("pointermove",move);
+        document.removeEventListener("pointerup",up);
+        seekScenario(scenarioRuntime.time,false);
+        renderScenarioEditor();
+      };
+      document.addEventListener("pointermove",move);
+      document.addEventListener("pointerup",up);
+    });
+
+    row.addEventListener("pointerdown",e=>{
+      if(e.target===row){
+        const r=scenarioTimelineInner.getBoundingClientRect();
+        const x=e.clientX-r.left-SCENARIO_LABEL_WIDTH;
+        seekScenario(x/pps,false);
+      }
+    });
+
+    row.appendChild(block);
+    scenarioTimelineInner.appendChild(row);
+  }
+
+  const ph=document.createElement("div");
+  ph.id="scenarioPlayhead";
+  ph.className="scenario-playhead";
+  ph.style.left=`${SCENARIO_LABEL_WIDTH+scenarioRuntime.time*pps}px`;
+  scenarioTimelineInner.appendChild(ph);
+
+  updateScenarioClipControls();
+  updateScenarioTransportUI();
+  scenarioTimelineScroll.scrollLeft=oldScrollLeft;
+  scenarioTimelineScroll.scrollTop=oldScrollTop;
+}
+
+function bindScenarioEditor(){
+  if(IS_PLAYER)return;
+
+  document.getElementById("openScenarioEditor").onclick=openScenarioEditor;
+  document.getElementById("scenarioClose").onclick=closeScenarioEditor;
+
+  document.getElementById("scenarioNew").onclick=()=>{
+    if(!confirm("Create a new scenario? The current scenario will be replaced."))return;
+    stopScenario();
+    scenarioRuntime.live=false;
+    scenario=defaultScenario();
+    scenarioSelectedClipId=null;
+    scenarioPickPositionMode=false;
+    renderScenarioEditor();
+    renderInspector();
+  };
+
+  document.getElementById("scenarioSave").onclick=()=>{
+    scenario.name=document.getElementById("scenarioName").value.trim()||"Scenario";
+    scenario.duration=Math.max(.1,Number(document.getElementById("scenarioDuration").value)||30);
+    scenario.loop=document.getElementById("scenarioLoop").checked;
+    scenario.duration=Math.max(scenario.duration,scenarioMaxClipEnd());
+    const blob=new Blob([JSON.stringify(scenario,null,2)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    const safe=scenario.name.replace(/[^\w\-]+/g,"_")||"scenario";
+    a.download=`${safe}.scenario.json`;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  };
+
+  document.getElementById("scenarioLoad").onchange=e=>{
+    const file=e.target.files[0];if(!file)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        stopScenario();
+        scenarioRuntime.live=false;
+        scenario=normalizeScenario(JSON.parse(r.result));
+        scenarioSelectedClipId=null;
+        scenarioPickPositionMode=false;
+        renderScenarioEditor();
+        renderInspector();
+        openScenarioEditor();
+      }catch(err){
+        alert("Invalid scenario JSON: "+err.message);
+      }
+    };
+    r.readAsText(file);
+    e.target.value="";
+  };
+
+  document.getElementById("scenarioPlay").onclick=playScenario;
+  document.getElementById("scenarioPause").onclick=pauseScenario;
+  document.getElementById("scenarioStop").onclick=stopScenario;
+
+  document.getElementById("scenarioName").onchange=e=>{
+    scenario.name=e.target.value.trim()||"Scenario";
+  };
+  document.getElementById("scenarioDuration").onchange=e=>{
+    scenario.duration=Math.max(.1,Number(e.target.value)||30,scenarioMaxClipEnd());
+    if(scenarioRuntime.time>scenario.duration)seekScenario(scenario.duration,false);
+    renderScenarioEditor();
+  };
+  document.getElementById("scenarioLoop").onchange=e=>{
+    scenario.loop=e.target.checked;
+  };
+  document.getElementById("scenarioZoom").oninput=renderScenarioEditor;
+
+  document.getElementById("scenarioAddEffect").onclick=()=>{
+    const type=document.getElementById("scenarioEffectType").value;
+    const template=makeScenarioTemplate(type);
+    const clip=createScenarioClip(template,scenarioRuntime.time);
+    if(clip){
+      renderScenarioEditor();
+      renderInspector();
+    }
+  };
+
+  document.getElementById("scenarioAddSelected").onclick=()=>{
+    const layer=layerById(selectedId);
+    if(!layer||layer.__scenarioRuntime){
+      alert("Select a normal map layer first, then capture it into the scenario.");
+      return;
+    }
+    const clip=createScenarioClip(cloneLayerAsScenarioTemplate(layer),scenarioRuntime.time);
+    if(clip){
+      renderScenarioEditor();
+      renderInspector();
+    }
+  };
+
+  document.getElementById("scenarioClipStart").onchange=e=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    c.start=Math.max(0,Number(e.target.value)||0);
+    scenario.duration=Math.max(scenario.duration,c.start+c.duration);
+    seekScenario(scenarioRuntime.time,false);
+    renderScenarioEditor();
+  };
+  document.getElementById("scenarioClipDuration").onchange=e=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    c.duration=Math.max(.1,Number(e.target.value)||.1);
+    scenario.duration=Math.max(scenario.duration,c.start+c.duration);
+    if(c.template?.type==="explosion"||c.template?.type==="magic")
+      c.template.props.duration=c.duration;
+    seekScenario(scenarioRuntime.time,false);
+    renderScenarioEditor();
+  };
+  document.getElementById("scenarioClipMaster").onchange=e=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    c.template.showMaster=e.target.checked;
+    refreshSelectedScenarioClipRuntime();
+    renderScenarioEditor();
+  };
+  document.getElementById("scenarioClipPlayer").onchange=e=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    c.template.showPlayer=e.target.checked;
+    refreshSelectedScenarioClipRuntime();
+    renderScenarioEditor();
+  };
+
+  document.getElementById("scenarioPickPosition").onclick=()=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    const props=c.template?.props||{};
+    if(!(Number.isFinite(props.x)&&Number.isFinite(props.y))){
+      alert("This clip type does not use a single X/Y position.");
+      return;
+    }
+    scenarioPickPositionMode=true;
+    updateScenarioClipControls();
+  };
+
+  document.getElementById("scenarioDuplicateClip").onclick=()=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    const copy=JSON.parse(JSON.stringify(c));
+    copy.id=uid("clip");
+    copy.name=c.name+" copy";
+    copy.start=c.start+c.duration+.25;
+    copy.template.id=uid("scenario_template_"+(copy.template.type||"effect"));
+    scenario.clips.push(copy);
+    scenario.duration=Math.max(scenario.duration,copy.start+copy.duration);
+    scenarioSelectedClipId=copy.id;
+    renderScenarioEditor();
+    renderInspector();
+  };
+
+  document.getElementById("scenarioDeleteClip").onclick=()=>{
+    const c=scenarioSelectedClip();if(!c)return;
+    removeScenarioRuntimeForClip(c.id,false);
+    scenario.clips=scenario.clips.filter(x=>x.id!==c.id);
+    scenarioSelectedClipId=null;
+    scenarioPickPositionMode=false;
+    sendState(true);
+    renderScenarioEditor();
+    renderInspector();
+  };
+}
+bindScenarioEditor();
+
+/* =========================================================
+   COLLAPSIBLE SIDEBAR
+   ========================================================= */
+function initCollapsibleSections(){
+  if(IS_PLAYER)return;
+  document.querySelectorAll("#sidebar .section > h3").forEach(h=>{
+    h.title="Click to collapse / expand";
+    h.addEventListener("click",()=>h.parentElement.classList.toggle("collapsed"));
+  });
+}
+/* =========================================================
+   INIT
+   ========================================================= */
+initCollapsibleSections();
+ensureAudioConfig();
+applySceneSettingsToUI();
+rebuildFog();
+ensureBackgroundTexture();
+renderScenarioEditor();
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+let prev=performance.now(),fpsFrames=0,fpsAccum=0,fps=0;
+function frame(now){
+  const dt=Math.min((now-prev)/1000,.05);prev=now;
+  const time=now/1000;
+
+  updateScenarioPlayback(dt);
+
+  updateSmoke(dt,time);
+  updateFire(dt,time);
+  updateRain(dt);
+  updateTransient(dt,time);
+  updateAudioPlayback();
+
+  gl.clearColor(0,0,0,1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  drawBackground();
+  drawSmoke();
+  drawFire();
+  drawTransient();
+  drawWalls();
+  drawOverlay();
+  drawMasterSelection();
+
+  fpsFrames++;fpsAccum+=dt;
+  if(!IS_PLAYER&&fpsAccum>.5){
+    fps=Math.round(fpsFrames/fpsAccum);fpsFrames=0;fpsAccum=0;
+    let particleCount=0;
+    for(const rt of runtimes.values())particleCount+=rt.particles.length;
+    statusEl.innerHTML=
+      `FPS: ${fps}<br>`+
+      `Camera: ${camera().x.toFixed(0)}, ${camera().y.toFixed(0)} · Zoom ${camera().zoom.toFixed(2)}×<br>`+
+      `World: ${worldWidth()} × ${worldHeight()}<br>`+
+      `Layers: ${scene.layers.length}<br>`+
+      `Particles: ${particleCount}<br>`+
+      `Walls: ${layersOf("wall").length} &nbsp; Lights: ${layersOf("light").length} &nbsp; Smoke: ${layersOf("smoke").length}<br>`+
+      `Fire: ${layersOf("fire").length} &nbsp; Rain: ${layersOf("rain").length} &nbsp; Temporary: ${scene.layers.filter(l=>l.temporary).length}<br>`+
+      `Annotations: ${scene.layers.filter(l=>["text","rect","circle","shapeLine","polygon"].includes(l.type)).length}<br>`+
+      `Scenario: ${scenarioRuntime.playing?"PLAY":"stopped"} ${scenarioRuntime.time.toFixed(1)} / ${scenario.duration.toFixed(1)} s`;
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
