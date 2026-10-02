@@ -25,7 +25,7 @@ python -m http.server 8000
 Then open:
 
 ```text
-http://localhost:8000/battlemap_webgl_editor_v7_scenarios.html
+http://localhost:8000/battlemap_webgl_editor_v7.html
 ```
 
 Use **Open Player Window** to create the separate Player display.
